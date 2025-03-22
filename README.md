@@ -7,8 +7,8 @@
 - simple templating
 
 ## Markdown parsing
-- source `./lib/convert.scm`
-- test `./lib/convert_test.scm`
+- source [`convert.scm`](./lib/convert.scm)
+- test [`convert_test.scm`](./lib/convert_test.scm)
 
 I will support Markdown syntaxes that I remember only.
 - block element
@@ -23,10 +23,11 @@ I will support Markdown syntaxes that I remember only.
   - otherwise it's p
 - inline element
   - code starts with a single backtick
+  - link is `[text](url)`
   - emph starts with `_` or `*`
   - strong starts with `__` or `**`
   - strikethrough starts with `~~`
   - variable in frontmatter is `{name}`
-Note that table and links are not supported.
+Note that `<table>` and `<img>` are not supported.
 
 The parser tries to parse text line by line.

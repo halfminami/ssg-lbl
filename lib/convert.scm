@@ -135,8 +135,8 @@
        (display-raw #"</~|tagname|>" out)))))
 
 (define (ul-prefix-length s)
-  (and-let1 _ (or (string-prefix? "+ " s) (string-prefix? "- " s) (string-prefix? "* " s))
-	    2))
+  (and (or (string-prefix? "+ " s) (string-prefix? "- " s) (string-prefix? "* " s))
+       2))
 
 (define (ol-prefix-length s)
   (and-let* ([n (count-leading-digits s)]
@@ -169,12 +169,11 @@
     (+ 1 n)))
 
 ;; we need to peek instead of read-line
-(define (drop-newline! in)
-  (while (newline? (peek-char in)) (read-char in)))
+(define (drop-newline! in) (while (newline? (peek-char in)) (read-char in)))
 
 (define count-leading--s (count-leading-pred (cut char=? #\- <>)))
 
-;; block level syntax is handled. tags (except <p>) are on stack
+;; block level syntax is handled here. tags (except <p>) are on stack
 (define (markdown->html! in out env)
   (define stack-bottom '())
   
@@ -183,10 +182,8 @@
       [(ul ol) (when (alist-ref data 'open) (close-tagname "li"))])
     (close-tagname (alist-ref data 'tagname)))
   
-  (define (open-tagname tagname)
-    (display-raw #"<~|tagname|>" out))
-  (define (close-tagname tagname)
-    (displayln-raw #"</~|tagname|>" out))
+  (define (open-tagname tagname) (display-raw #"<~|tagname|>" out))
+  (define (close-tagname tagname) (displayln-raw #"</~|tagname|>" out))
 
   (define (pop-stack stack)
     (close-tag (car stack))
@@ -323,8 +320,13 @@
 		 (branch-inline! this-line-nospace out loop-env)
 		 (loop (read-line in) (cons data stack) q loop-env)]))])))))
 
-;; TODO: links, tedious to parse when reading line by line
-;; TODO: variables
+(define (xs->string xs)
+  ($ string-append $* map x->string xs))
+
+;; links are tedious to parse
+;; I couldn't parse ![...](...) without looking ahead, ! is so common
+;; there is untested remnants, it's harmless and I may be able to choose different syntax
+
 (define (branch-inline! line out env)
   (define n (string-length line))
   (define inline-stack-bottom 'no)
@@ -333,7 +335,17 @@
   (define (push-inline-stack! sym)
     (hash-table-update! env 'inline-stack (cut cons sym <>) `(,inline-stack-bottom)))
   (define (pop-inline-stack!)
-    (hash-table-update! env 'inline-stack cdr))
+    (hash-table-pop! env 'inline-stack))
+
+  ;; after pop
+  ;; when [here](), text should put inside 'a-text or 'img-text, accordingly
+  (define (push-or-acc! c acc)
+    (if-let1 sym (find (^s (or (equal? 'a-text s)
+			       (equal? 'img-text s)))
+		       (get-inline-stack))
+	     (begin (hash-table-push! env sym c)
+		    acc)
+	     (cons c acc)))
 
   (define (make-pos-* ch)
     (^i (if (char=? ch (string-ref line i))
@@ -357,42 +369,99 @@
 	  (if (equal? sym top)
 	      (begin			; close
 		(pop-inline-stack!)
-		`(,i ,(cons #"</~|tagname|>" acc)))
+		`(,i ,(push-or-acc! #"</~|tagname|>" acc)))
 	      (begin			; open
 		(push-inline-stack! sym)
-		`(,i ,(cons #"<~|tagname|>" acc)))))))
+		`(,i ,(push-or-acc! #"<~|tagname|>" acc)))))))
 
   (define (|until-`| i acc should-push)
     (when should-push
       (push-inline-stack! 'code))
-    (let loop ([i i] [acc (append (if should-push '("<code>") '()) acc)])
-      (if (< i n)
-	  (case (string-ref line i)
-	    [(#\`)
-	     (pop-inline-stack!)
-	     `(,(+ 1 i) ,(cons "</code>" acc))]
-	    [else => (^c (loop (+ 1 i) (cons (char->escaped c) acc)))]) ; why can't I use cut here
-	  `(,i ,acc))))
+    (let1 acc (push-or-acc! (if should-push "<code>" "") acc)
+	  (let loop ([i i] [acc acc])
+	    (if (< i n)
+		(case (string-ref line i)
+		  [(#\`)
+		   (pop-inline-stack!)
+		   `(,(+ 1 i) ,(push-or-acc! "</code>" acc))]
+		  [else			; why can't I use cut here
+		   => (^c
+		       (loop (+ 1 i)
+			     (push-or-acc! (char->escaped c) acc)))])
+		`(,i ,acc)))))
+
+  (define (|something-until-)|
+	   a-link-sym			; on stack
+	   a-text-sym a-url-sym		; env
+	   format)			; takes text and url
+    (lambda (i acc should-push)
+      (when should-push
+	(push-inline-stack! a-link-sym))
+      (let loop ([i i])
+	(if (< i n)
+	    (case (string-ref line i)
+	      [(#\))
+	       (pop-inline-stack!)
+	       (begin0
+		`(,(+ 1 i)
+		  ,(push-or-acc! (let ([text ($ xs->string $ reverse $ hash-table-get env a-text-sym #f)]
+				       [url  ($ xs->string $ reverse $ hash-table-get env a-url-sym  #f)])
+				   (format text url))
+				 acc))
+		(hash-table-delete! env a-text-sym)
+		(hash-table-delete! env a-url-sym))]
+	      [else => (^c (hash-table-push! env a-url-sym c)
+			   (loop (+ 1 i)))])
+	    `(,i ,acc)))))
+
+  ;; I probably should create symbol from string..
+  (define |a-until-)| (|something-until-)|
+		       'a-link 'a-text 'a-url
+		       (lambda (text url) #"<a href=\"~|url|\">~|text|</a>")))
+
+  (define |img-until-)| (|something-until-)|
+			 'img-link 'img-text 'img-url
+			 (lambda (text url) #"<img src=\"~|url|\" alt=\"~|text|\">")))
+
+  ;; next string cleaning up closed links
+  (define (a-img-wasnt c acc)
+    (case (car (get-inline-stack))
+      [(a-text-closed)
+       (let* ([text      ($ xs->string $ reverse $ hash-table-get env 'a-text #f)]
+	      [formatted #"[~|text|]~|c|"])
+	 (pop-inline-stack!)
+	 (hash-table-delete! env 'a-text)
+	 (cons formatted acc))]
+      [(img-text-closed)
+       (let* ([text      ($ xs->string $ reverse $ hash-table-get env 'img-text #f)]
+	      [formatted #"![~|text|]~|c|"])
+	 (pop-inline-stack!)
+	 (hash-table-delete! env 'img-text)
+	 (cons formatted acc))]
+      [else				; line end (newline)
+       acc]))
 
   (define (|until-}| i acc should-push)
     (if should-push
 	(push-inline-stack! 'variable)
-	(hash-table-update! env 'variable-name (cut cons #\space <>) '()))
+	;; newline is space
+	(hash-table-push! env 'variable-name #\space))
     (let loop ([i i])
       (if (< i n)
 	  (case (string-ref line i)
 	    [(#\})
 	     (pop-inline-stack!)
 	     (begin0
-	      `(,(+ 1 i) ,(cons (and-let* ([name-rev (hash-table-get env 'variable-name #f)]
-					   [name (list->string (reverse name-rev))]
-					   [data (alist-ref (hash-table-get env 'user) name)])
-				  data)
-				acc))
-	      (hash-table-set! env 'variable-name '()))]
-	    [else => (^c
-		      (hash-table-update! env 'variable-name (cut cons c <>) '())
-		      (loop (+ 1 i)))])
+	      `(,(+ 1 i)
+		,(push-or-acc! (and-let* ([name-rev (hash-table-get env 'variable-name #f)]
+					  [name     (list->string (reverse name-rev))]
+					  [user     (hash-table-get env 'user #f)]
+					  [data     (alist-ref user name)])
+				 data)
+			       acc))
+	      (hash-table-delete! env 'variable-name))]
+	    [else => (^c (hash-table-push! env 'variable-name c)
+			 (loop (+ 1 i)))])
 	  `(,i ,acc))))
 
   ;; returns next i and acc
@@ -401,21 +470,70 @@
 	`(,i ,acc)
 	(let ([top (car (get-inline-stack))]
 	      [c   (string-ref line i)])
-	  (cond [(equal? 'code top)
-		 (apply branch! (|until-`| i acc #f))]
-		[(equal? 'variable top)
-		 (apply branch! (|until-}| i acc #f))]
-		[(char=? #\` c)
-		 (apply branch! (|until-`| (+ 1 i) acc #t))]
-		[(char=? #\{ c)
-		 (apply branch! (|until-}| (+ 1 i) acc #t))]
-		[(pos-** i) => (open-close-something 'strong-** "strong" acc)]
-		[(pos-__ i) => (open-close-something 'strong-__ "strong" acc)]
-		[(pos-~~ i) => (open-close-something 'strike-~~ "s"      acc)]
-		[(pos-*  i) => (open-close-something 'em-*      "em"     acc)]
-		[(pos-_  i) => (open-close-something 'em-_      "em"     acc)]
-		[else
-		 `(,(+ 1 i) ,(cons (string-ref line i) acc))]))))
+	  (case top
+	    ;; characters that have to immediately follow
+	    [(a-text-closed)
+	     (if (char=? #\( c)
+		 (begin
+		   (pop-inline-stack!)
+		   (apply branch! (|a-until-)| (+ 1 i) acc #t)))
+		 `(,(+ 1 i) ,(a-img-wasnt c acc)))]
+	    [(img-text-closed)
+	     (if (char=? #\( c)
+		 (begin
+		   (pop-inline-stack!)
+		   (apply branch! (|img-until-)| (+ 1 i) acc #t)))
+		 `(,(+ 1 i) ,(a-img-wasnt c acc)))]
+	    [(!)
+	     (if (char=? #\[ c)
+		 (begin
+		   (pop-inline-stack!)
+		   (push-inline-stack! 'img-text)
+		   `(,(+ 1 i) ,acc))
+		 (begin
+		   (pop-inline-stack!)
+		   `(,(+ 1 i) ,(push-or-acc! "![" acc))))]
+	    [else
+	     ;; verbatim
+	     (cond [(equal? 'code top)
+		    (apply branch! (|until-`| i acc #f))]
+		   [(equal? 'variable top)
+		    (apply branch! (|until-}| i acc #f))]
+		   [(equal? 'a-link top)
+		    (apply branch! (|a-until-)| i acc #f))]
+		   [(equal? 'img-link top)
+		    (apply branch! (|img-until-)| i acc #f))]
+		   [(char=? #\` c)
+		    (apply branch! (|until-`| (+ 1 i) acc #t))]
+		   [(char=? #\{ c)
+		    (apply branch! (|until-}| (+ 1 i) acc #t))]
+		   ;; url text
+		   [(and (char=? #\[ c)	; don't nest
+			 (not (or (equal? 'a-text top)
+				  (equal? 'img-text top))))
+		    (push-inline-stack! 'a-text)
+		    `(,(+ 1 i) ,acc)]
+		   ;; img
+		   #;
+		   [(and (char=? #\! c) (not (equal? 'img-text top)))
+		    (push-inline-stack! '!)
+		    `(,(+ 1 i) ,acc)]
+		   [(and (char=? #\] c) (equal? 'a-text top))
+		    (pop-inline-stack!)
+		    (push-inline-stack! 'a-text-closed)
+		    `(,(+ 1 i) ,acc)]
+		   [(and (char=? #\] c) (equal? 'img-text top))
+		    (pop-inline-stack!)
+		    (push-inline-stack! 'img-text-closed)
+		    `(,(+ 1 i) ,acc)]
+		   
+		   [(pos-** i) => (open-close-something 'strong-** "strong" acc)]
+		   [(pos-__ i) => (open-close-something 'strong-__ "strong" acc)]
+		   [(pos-~~ i) => (open-close-something 'strike-~~ "s"      acc)]
+		   [(pos-*  i) => (open-close-something 'em-*      "em"     acc)]
+		   [(pos-_  i) => (open-close-something 'em-_      "em"     acc)]
+		   [else
+		    `(,(+ 1 i) ,(push-or-acc! c acc))])]))))
   
   (let loop ([i 0] [acc '()])
     (let* ([l   (branch! i acc)]
@@ -423,4 +541,11 @@
 	   [acc (cadr l)])
       (if (< i n)
 	  (loop i acc)
-	  (for-each (cut display-raw <> out) (reverse acc))))))
+	  (begin
+	    (if-let1 sym (find (^s (or (equal? 'a-text s)
+				       (equal? 'img-text s)))
+			       (get-inline-stack))
+		     (hash-table-push! env sym #\newline))
+	    ($ for-each
+	       (cut display-raw <> out)
+	       $ reverse $ a-img-wasnt #\newline acc))))))

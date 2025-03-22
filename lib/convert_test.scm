@@ -1,3 +1,6 @@
+;; test for markdown->html!
+;; I will add tests as I use this program
+
 (use gauche.test)
 
 (load "./convert")
@@ -539,5 +542,57 @@ name}"
 {run away}"
 			   (hash-table-from-pairs 'eq?
 						  '(user . ()))))
+
+(test-section "markdown->html! w/ links")
+
+(test* "a simple"
+       "<p>hello <a href=\"wikipedia.org\">Wikipedia</a>.</p>\n"
+       (run-markdown->html "hello [Wikipedia](wikipedia.org).")
+       test-check-diff test-report-failure-diff)
+
+(test* "a multiline"
+       "\
+<p>
+<a href=\"example.com\">really
+long</a></p>
+"
+       (run-markdown->html "\
+[really
+long](example.com)")
+       test-check-diff test-report-failure-diff)
+
+(test* "a everywhere"
+       "\
+<ul><li>check out <a href=\"example.com\">the website</a></li>
+</ul>
+<blockquote><p>check out <a href=\"example.com\">the website</a></p>
+</blockquote>
+<p>check out <a href=\"example.com\">the <strong>website</strong></a><br>
+<a href=\"docs.example.com\"><code>printf</code></a></p>
+"
+       (run-markdown->html "\
+- check out [the website](example.com)
+
+> check out [the website](example.com)
+
+check out [the **website**](example.com)<br>
+[`printf`](docs.example.com)")
+       test-check-diff test-report-failure-diff)
+
+(test* "a fake"
+       "\
+<p>[this <em>and</em>] [this is not a link]
+</p>
+<p>[this too is not] (a link)</p>
+"
+       (run-markdown->html "\
+[this *and*] [this is not a link]
+
+[this too is not] (a link)")
+       test-check-diff test-report-failure-diff)
+
+(test* "don't choke on invalid input"
+       (test-truthy)
+       (run-markdown->html "[hello hello\nhello\n\n[hello](hello hello\n"))
 
 (test-end :exit-on-failure #t)
