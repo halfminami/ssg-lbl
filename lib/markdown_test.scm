@@ -3,10 +3,10 @@
 
 (use gauche.test)
 
-(load "./convert")
-(import convert.all)
+(load "./markdown")
+(import markdown.all)
 
-(test-start "convert")
+(test-start "markdown")
 
 ;; simply comparing by string, not HTML representation
 ;; more like diff test, subject to change..
@@ -53,77 +53,6 @@ const b = 2 < 3;
 // your```mom"
 			   hljs))
 
-#|
-(test-section "next-ul!")
-
-(define (run-next-ul str :optional [env (make-hash-table)])
-  (define in (open-input-string str))
-  (define out (open-output-string))
-
-  (define last-line (next-ul! (read-line in) in out env))
-  
-  (begin0
-   `(,last-line ,(get-output-string out) ,(port->string in))
-   (close-input-port in)
-   (close-output-port out)))
-
-(test* "- one"
-       `(,(undefined) "<ul><li>hello</li>\n</ul>" "") (run-next-ul "- hello"))
-(test* "+ one"
-       `(,(undefined) "<ul><li>hello</li>\n</ul>" "") (run-next-ul "+ hello"))
-
-(test* "flat"
-       '("-not li" "<ul><li>a1</li>\n<li>a2</li>\n<li>a3</li>\n</ul>" "more not li")
-       (run-next-ul "- a1\n- a2\n- a3\n-not li\nmore not li"))
-(test* "nest open"
-       `(,(undefined)
-	 "<ul><li>top</li>\n<ul><li>deep</li>\n<li>dep</li>\n<ul><li>deeper</li>\n</ul></ul></ul>"
-	 "")
-       (run-next-ul "- top\n  - deep\n  - dep\n    - deeper"))
-(test* "nest closed"
-       `(,(undefined)
-	 "<ul><li>top</li>\n<ul><li>deep</li>\n<ul><li>deeper</li>\n</ul><li>deep2</li>\n</ul><li>top1</li>\n</ul>"
-	 "")
-       (run-next-ul "- top\n  - deep\n    - deeper\n  - deep2\n- top1"))
-(test* "nest closed jump"
-       `(,(undefined)
-	 "<ul><li>top</li>\n<ul><li>deep</li>\n<ul><li>deeper</li>\n</ul></ul><li>top1</li>\n</ul>"
-	 "")
-       (run-next-ul "- top\n  - deep\n    - deeper\n- top1"))
-(test* "nest back and forth"
-       `(,(undefined)
-	 "<ul><li>top</li>\n<ul><li>deep</li>\n<ul><li>deeper</li>\n</ul><li>top1</li>\n<ul><li>deeper again</li>\n</ul></ul><li>simp</li>\n<ul><li>no</li>\n</ul></ul>"
-	 "")
-       (run-next-ul "- top\n  - deep\n    - deeper\n  - top1\n    - deeper again\n- simp\n  - no"))
-
-(test* "close newline"
-       '("" "<ul><li>top</li>\n<ul><li>deep</li>\n</ul></ul>" "- bye")
-       (run-next-ul "- top\n  - deep\n\n- bye"))
-(test* "newline continue"
-       `(,(undefined) "<ul><li>top\ncontinue</li>\n<li>another\ncontinue</li>\n</ul>" "")
-       (run-next-ul "- top\n  continue\n- another\n  continue"))
-(test* "newline continue"
-       `(,(undefined) "<ul><li>top</li>\n<ul><li>deep\ncontinue</li>\n</ul><li>top2\ncontinue</li>\n</ul>" "")
-       (run-next-ul "- top\n  - deep\n    continue\n- top2\n  continue"))
-
-(test-section "next-ol!")
-;; short test since code is almost the same as ul version
-
-(define (run-next-ol str :optional [env (make-hash-table)])
-  (define in (open-input-string str))
-  (define out (open-output-string))
-
-  (define last-line (next-ol! (read-line in) in out env))
-  
-  (begin0
-   `(,last-line ,(get-output-string out) ,(port->string in))
-   (close-input-port in)
-   (close-output-port out)))
-
-(test* "nest"
-       `(,(undefined) "<ol><li>324</li>\n<li>hell</li>\n<ol><li>boo</li>\n</ol></ol>" "")
-       (run-next-ol "1. 324\n22372. hell\n  281. boo"))
-|#
 (test-section "markdown->html! w/o inline")
 
 (define (run-markdown->html str :optional [env (make-hash-table)])

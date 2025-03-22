@@ -1,13 +1,13 @@
 ;; can I parse markdown line by line, without loading the whole content at once?
 
-(define-module convert.all		; for test
+(define-module markdown.all		; for test
   (export-all))
 
-(define-module convert
-  (import convert.all)
+(define-module markdown
+  (import markdown.all)
   (export markdown->html!))
 
-(select-module convert.all)
+(select-module markdown.all)
 
 ;; force output port
 (define (display-raw d out) (display d out))
@@ -74,9 +74,6 @@
 
   (displayln-raw "</code></pre>" out))
 
-;; ---------------------------------------------------------------------------------------------------
-;; ul and ol
-
 ;; make procedure that counts first characters whose count? is #t
 (define ((count-leading-pred count?) s)
   (define n (string-length s))
@@ -91,49 +88,6 @@
 (define count-leading-digits
   (count-leading-pred (cut char<=? #\0 <> #\9)))
 
-;; returns next-{ul,ol}!
-;; prefix-length returns length of prefix of li
-;; if the string is not li then returns #f
-(define ((proc-next-list! prefix-length tagname) line in out env)
-  (let next-list! ([line line] [in in] [out out] [env env])
-    (let* ([ignore-first (hash-table-get env 'ignore-first 0)]
-	   [ignored      (ignore-substring ignore-first line)] ; only to check depth
-	   [depth        (count-leading-spaces ignored)])
-      (display-raw #"<~|tagname|>" out)
-      (begin0
-       (let loop ([line line] [open #f])
-	 (if (not (string? line))
-	     (when open (displayln-raw "</li>" out)) ; likely eof == undefined
-
-	     (let* ([ignored    (ignore-substring ignore-first line)]
-		    [this-depth (count-leading-spaces ignored)]
-		    [this-line  (substring ignored this-depth -1)]
-		    [starts     (prefix-length this-line)])
-	       (cond [(and (not starts) (= 0 this-depth)) ; out of list block
-		      (when open (displayln-raw "</li>" out))
-		      line]
-
-		     [(not starts)		  ; not li open
-		      (display-raw #\newline out) ; previous content
-		      (branch-inline! this-line out env)
-		      (loop (read-line in) open)]
-
-		     [(< this-depth depth) ; this depth's end
-		      (when open (displayln-raw "</li>" out))
-		      line]
-
-		     [(> this-depth depth) ; nest
-		      (when open (displayln-raw "</li>" out))
-		      (loop (next-list! line in out env) #f)]
-
-		     [else		; new li
-		      (when open (displayln-raw "</li>" out))
-		      (display-raw "<li>" out)
-		      (branch-inline! (substring this-line starts -1) out env)
-		      (loop (read-line in) #t)]))))
-
-       (display-raw #"</~|tagname|>" out)))))
-
 (define (ul-prefix-length s)
   (and (or (string-prefix? "+ " s) (string-prefix? "- " s) (string-prefix? "* " s))
        2))
@@ -143,12 +97,6 @@
 	     [ (> n 0)]
 	     [ (string-prefix? ". " (substring s n -1))])
     (+ 2 n)))
-
-;; start of ul. line's prefix is `r/ *[-+] /`
-;; returns last line read
-(define next-ul! (proc-next-list! ul-prefix-length "ul"))
-
-(define next-ol! (proc-next-list! ol-prefix-length "ol"))
 
 ;; ---------------------------------------------------------------------------------------------------
 
@@ -332,10 +280,9 @@
   (define inline-stack-bottom 'no)
   
   (define (get-inline-stack) (hash-table-get env 'inline-stack `(,inline-stack-bottom)))
-  (define (push-inline-stack! sym)
+  (define (push-inline-stack! sym)	; always car'ed
     (hash-table-update! env 'inline-stack (cut cons sym <>) `(,inline-stack-bottom)))
-  (define (pop-inline-stack!)
-    (hash-table-pop! env 'inline-stack))
+  (define (pop-inline-stack!) (hash-table-pop! env 'inline-stack))
 
   ;; after pop
   ;; when [here](), text should put inside 'a-text or 'img-text, accordingly

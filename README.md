@@ -7,8 +7,8 @@
 - simple templating
 
 ## Markdown parsing
-- source [`convert.scm`](./lib/convert.scm)
-- test [`convert_test.scm`](./lib/convert_test.scm)
+- source [`markdown.scm`](./lib/markdown.scm)
+- test [`markdown_test.scm`](./lib/markdown_test.scm)
 
 I will support Markdown syntaxes that I remember only.
 - block element
@@ -31,3 +31,6 @@ I will support Markdown syntaxes that I remember only.
 Note that `<table>` and `<img>` are not supported.
 
 The parser tries to parse text line by line.
+
+Codeblock and link url are not customizable.
+hr is not customizable because it's self-closing.
