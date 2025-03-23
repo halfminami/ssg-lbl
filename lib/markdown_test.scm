@@ -24,10 +24,12 @@
    (close-input-port in)
    (close-output-port out)))
 
-(define hljs (hash-table-from-pairs 'equal? '(codeblock-class . "hljs")))
+(define hljs
+  (hash-table-from-pairs 'eq?
+			 '(custom-tag . ((codeblock . ((classname . "hljs")))))))
 
 (test* "nothing"
-       '("<pre><code class=\"\"></code></pre>\n" "\n") (run-next-codeblock "```\n```\n\n" (make-hash-table)))
+       '("<pre><code></code></pre>\n" "\n") (run-next-codeblock "```\n```\n\n" (make-hash-table)))
 
 (test* "normal"
        '("<pre><code class=\"hljs language-js\">const b = 2 &lt; 3;
@@ -135,6 +137,38 @@ hello
 1. numbered 3
   1. numbered 4
 04932. NUMBER")
+       test-check-diff test-report-failure-diff)
+
+(test* "lists combined"
+       "\
+<ul><li>hello 1</li>
+<ul><li>hi 1</li>
+<ol><li>hell 1</li>
+</ol>
+</ul>
+</ul>
+<ol><li>hello 2</li>
+<ul><li>hi 2</li>
+</ul>
+<li>hello 3</li>
+<ul><li>hi 3</li>
+</ul>
+<ol><li>hi 4</li>
+<ul><li>hell 2</li>
+</ul>
+</ol>
+</ol>
+"
+       (run-markdown->html "\
+- hello 1
+  - hi 1
+    1. hell 1
+1. hello 2
+  - hi 2
+1. hello 3
+  - hi 3
+  1. hi 4
+    - hell 2")
        test-check-diff test-report-failure-diff)
 
 (test* "nest ul list"
@@ -482,30 +516,30 @@ name}"
 (test* "a multiline"
        "\
 <p>
-<a href=\"example.com\">really
+<a href=\"https://example.com/\">really
 long</a></p>
 "
        (run-markdown->html "\
 [really
-long](example.com)")
+long](https://example.com/)")
        test-check-diff test-report-failure-diff)
 
 (test* "a everywhere"
        "\
-<ul><li>check out <a href=\"example.com\">the website</a></li>
+<ul><li>check out <a href=\"https://example.com/\">the website</a></li>
 </ul>
-<blockquote><p>check out <a href=\"example.com\">the website</a></p>
+<blockquote><p>check out <a href=\"https://example.com/\">the website</a></p>
 </blockquote>
-<p>check out <a href=\"example.com\">the <strong>website</strong></a><br>
-<a href=\"docs.example.com\"><code>printf</code></a></p>
+<p>check out <a href=\"https://example.com/\">the <strong>website</strong></a><br>
+<a href=\"https://docs.example.com/\"><code>printf</code></a></p>
 "
        (run-markdown->html "\
-- check out [the website](example.com)
+- check out [the website](https://example.com/)
 
-> check out [the website](example.com)
+> check out [the website](https://example.com/)
 
-check out [the **website**](example.com)<br>
-[`printf`](docs.example.com)")
+check out [the **website**](https://example.com/)<br>
+[`printf`](https://docs.example.com/)")
        test-check-diff test-report-failure-diff)
 
 (test* "a fake"
@@ -523,5 +557,83 @@ check out [the **website**](example.com)<br>
 (test* "don't choke on invalid input"
        (test-truthy)
        (run-markdown->html "[hello hello\nhello\n\n[hello](hello hello\n"))
+
+(test-section "custom-tag rule")
+
+(test* "blockquote"
+       "\
+<div class=\"left-indent dim\"><p>feels like blockquotes are abused
+in markdown. they look pretty but
+they aren't actual quotes most of the time.</p>
+</div>
+"
+       (run-markdown->html "\
+>feels like blockquotes are abused
+>in markdown. they look pretty but
+>they aren't actual quotes most of the time."
+			   (alist->hash-table '((custom-tag . ((blockquote . ((tagname . "div") (classname . "left-indent dim"))))))))
+       test-check-diff test-report-failure-diff)
+
+(test* "ul and ol"
+       "\
+<ul class=\"no-bullet\" contenteditable><li class=\"list\">hello?</li>
+<ul class=\"no-bullet\" contenteditable><li class=\"list\">ok?</li>
+</ul>
+</ul>
+<ol class=\"roman\"><li class=\"list\">hi?</li>
+</ol>
+"
+       (run-markdown->html "\
+- hello?
+  - ok?
+1. hi?"
+			   (alist->hash-table '((custom-tag . ((ul . ((classname . "no-bullet") (raw . "contenteditable")))
+							       (li . ((classname . "list")))
+							       (ol . ((classname . "roman"))))))))
+       test-check-diff test-report-failure-diff)
+
+(test* "h1, h3 and p"
+       "\
+<p class=\"lead\">don't use many h1s!</p>
+<h2>h2 here</h2>
+<h3 class=\"big dim\">h3 here</h3>
+<p style=\"text-align: center; font-size: 2em\">and p</p>
+"
+       (run-markdown->html "\
+# don't use many h1s!
+## h2 here
+### h3 here
+and p"
+			   (alist->hash-table '((custom-tag . ((h1 . ((tagname . "p") (classname . "lead")))
+							       (h3 . ((classname . "big dim")))
+							       (p . ((raw . "style=\"text-align: center; font-size: 2em\""))))))))
+       test-check-diff test-report-failure-diff)
+
+(test* "strong, em, s, code"
+       "\
+<p><b class=\"important\">strong</b>
+<i class=\"term\" data-tooltip=\"hover\">em</i>
+<samp>code</samp></p>
+"
+       (run-markdown->html "\
+**strong**
+*em*
+`code`"
+			   (alist->hash-table '((custom-tag . ((strong . ((tagname . "b") (classname . "important")))
+							       (em . ((tagname . "i") (classname . "term") (raw . "data-tooltip=\"hover\"")))
+							       (code . ((tagname . "samp"))))))))
+       test-check-diff test-report-failure-diff)
+
+(test* "hr"
+       "<hr data-content=\"true\">"
+       (run-markdown->html "---"
+			   (alist->hash-table '((custom-tag . ((hr . ((raw . "data-content=\"true\""))))))))
+       test-check-diff test-report-failure-diff)
+
+(test* "a"
+       "<p><a class=\"new-tab\" href=\"https://example.com/survey/2020\" target=\"_blank\">take the survey</a></p>\n"
+       (run-markdown->html "[take the survey](https://example.com/survey/2020)"
+			   (alist->hash-table '((custom-tag . ((a . ((classname . "new-tab") (raw . "target=\"_blank\""))))))))
+       test-check-diff test-report-failure-diff)
 
 (test-end :exit-on-failure #t)

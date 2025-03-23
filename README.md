@@ -33,4 +33,4 @@ Note that `<table>` and `<img>` are not supported.
 The parser tries to parse text line by line.
 
 Codeblock and link url are not customizable.
-hr is not customizable because it's self-closing.
+Self-closing tag cannot be customized to produce a closing tag.
