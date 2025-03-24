@@ -11,10 +11,9 @@
   (define out (open-output-string))
 
   (branch-inline! str out env)
-  
-  (begin0
-   (get-output-string out)
-   (close-output-port out)))
+
+  (begin0 (get-output-string out)
+    (close-output-port out)))
 
 (test* "* flat"
        "hello <em>HTML</em> and <strong>CSS</strong>"

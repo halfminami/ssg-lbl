@@ -16,13 +16,12 @@
 (define (run-next-codeblock str env)
   (define in (open-input-string str))
   (define out (open-output-string))
-  
+
   (next-codeblock (read-line in) in out env)
 
-  (begin0
-   `(,(get-output-string out) ,(port->string in))
-   (close-input-port in)
-   (close-output-port out)))
+  (begin0 `(,(get-output-string out) ,(port->string in))
+    (close-input-port in)
+    (close-output-port out)))
 
 (define hljs
   (hash-table-from-pairs 'eq?
@@ -42,7 +41,7 @@ const b = 2 < 3;
 // your
 ```
 mom"
-			    hljs))
+			   hljs))
 
 (test* "ill"
        '("<pre><code class=\"hljs language-js\">const b = 2 &lt; 3;
@@ -62,16 +61,15 @@ const b = 2 < 3;
   (define out (open-output-string))
 
   (markdown->html! in out env)
-  (begin0
-   (get-output-string out)
-   (close-input-port in)
-   (close-output-port out)))
+  (begin0 (get-output-string out)
+    (close-input-port in)
+    (close-output-port out)))
 
 ;; I could use list of strings, but the last newline was significant..
 (test* "flat"
        "\
 <p>hello</p>
-<h1>HELLO</h1>
+<h1 id=\"hello\">HELLO</h1>
 <ul><li>l1</li>
 </ul>
 <ol><li>l2</li>
@@ -87,7 +85,7 @@ hello
 
 (test* "nest blockquote"
        "\
-<blockquote><h3>hello</h3>
+<blockquote><h3 id=\"hello\">hello</h3>
 <blockquote><p>hi</p>
 </blockquote>
 <p>whassup</p>
@@ -282,7 +280,7 @@ what
 </ul>
 <p>TODO: allow blank line</p>
 </blockquote>
-<h1> hey!</h1>
+<h1 id=\"-hey!\"> hey!</h1>
 </blockquote>
 "
        (run-markdown->html "\
@@ -299,7 +297,7 @@ what
 (test* "inside blockquote"
        "\
 <blockquote><p>hello</p>
-<h1>HELLO</h1>
+<h1 id=\"hello\">HELLO</h1>
 <ul><li>l1</li>
 </ul>
 <ol><li>l2</li>
@@ -339,13 +337,13 @@ bye")
 
 (test* "parser off"
        "\
-<ul><li>hello <div>I AM ALIVE</div>
+<ul><li>hello<div>I AM ALIVE</div>
 </li>
 <li>did I see anything</li>
 </ul>
 "
        (run-markdown->html "\
-- hello 
+- hello
 ;;;off
 <div>I AM ALIVE</div>
 ;;;on
@@ -381,7 +379,7 @@ hello**
 
 (test* "long"
        "\
-<h1>hello!</h1>
+<h1 id=\"hello!\">hello!</h1>
 <p>I am <em>building a <strong>
 blog</strong></em>!
 <s>I'm not sure if <strong>I
@@ -416,7 +414,7 @@ this:
 
 (test* "inline"
        "\
-<h1>Looking at <em>You</em></h1>
+<h1 id=\"looking-at-*you*\">Looking at <em>You</em></h1>
 <ul><li>hello <em>1
 hello</em> 2
 hello 3</li>
@@ -442,13 +440,13 @@ hello</strong> 6</li>
 
 (test* "flat"
        "\
-<h1>My <marquee>blog</marquee></h1>
+<p>My <marquee>blog</marquee></p>
 <p>created at 2025-03-22</p>
 <ul><li>hello me!</li>
 </ul>
 "
        (run-markdown->html "\
-# {title}
+{title}
 
 created at {created}
 - hello {name}!"
@@ -568,9 +566,9 @@ they aren't actual quotes most of the time.</p>
 
 (test* "h1, h3 and p"
        "\
-<p class=\"lead\">don't use many h1s!</p>
-<h2>h2 here</h2>
-<h3 class=\"big dim\">h3 here</h3>
+<p class=\"lead\" id=\"don't-use-many-h1s!\">don't use many h1s!</p>
+<h2 id=\"h2-here\">h2 here</h2>
+<h3 class=\"big dim\" id=\"h3-here\">h3 here</h3>
 <p style=\"text-align: center; font-size: 2em\">and p</p>
 "
        (run-markdown->html "\
@@ -605,9 +603,39 @@ and p"
        test-check-diff test-report-failure-diff)
 
 (test* "a"
-       "<p><a class=\"new-tab\" href=\"https://example.com/survey/2020\" target=\"_blank\">take the survey</a></p>\n"
+       "<p><a class=\"new-tab\" target=\"_blank\" href=\"https://example.com/survey/2020\">take the survey</a></p>\n"
        (run-markdown->html "[take the survey](https://example.com/survey/2020)"
 			   (alist->hash-table '((custom-tag . ((a . ((classname . "new-tab") (raw . "target=\"_blank\""))))))))
        test-check-diff test-report-failure-diff)
+
+(test-section "table of contents")
+
+(define (headings-markdown->html str :optional [env (make-hash-table)])
+  (define in (open-input-string str))
+  (define out (open-output-string))
+
+  (begin0 (markdown->html! in out env)
+    (close-input-port in)
+    (close-output-port out)))
+
+(test* "single h1"
+       '((h1 . "hello"))
+       (headings-markdown->html "\
+# hello"))
+
+(test* "many"
+       '((h1 . "simple-ssg-from-scratch")
+         (h2 . "directory-structure")
+         (h2 . "run")
+         (h3 . "uses")
+         (h2 . "test"))
+       (headings-markdown->html "\
+# Simple SSG from scratch
+## Directory Structure
+- TODO
+
+## Run
+### Uses
+## Test"))
 
 (test-end :exit-on-failure #t)

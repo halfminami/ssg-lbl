@@ -6,10 +6,11 @@
 	  as->
 
 	  equal-one-of?
-	  
+
 	  string-prefix?
 	  count-leading-pred
-	  newline?))
+	  newline?
+	  string-empty?))
 
 (select-module lib.util)
 
@@ -47,9 +48,10 @@
   (define n (string-length s))
   (let loop ([at 0])
     (if (or (<= n at) ($ not $ count? $ string-ref s at))
-	at
-	(loop (+ 1 at)))))
+      at
+      (loop (+ 1 at)))))
 
 ;; convenience
 (define (newline? c) (equal? #\newline c))
 
+(define (string-empty? s) (= 0 (string-length s)))

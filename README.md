@@ -1,24 +1,28 @@
 # DIY minimal SSG
 
 - Markdown->HTML
-  - not going to support all of the markdown syntaxes out there, but just
-    enough to write something
+  - basic Markdown only, but hopefully just enough to write some blog posts
 - config
+  - arbitrary Scheme
+  - replace elements
 - simple templating
 
-## Markdown parsing
-- source [`markdown.scm`](./lib/markdown.scm)
-- test [`markdown_test.scm`](./lib/markdown_test.scm)
+## Markdown parser
 
-I will support Markdown syntaxes that I remember only.
+The parser tries to parse text line by line.
+It doesn't validate input.
+
 - block element
   - heading starts with `r/#+ /`
+    - id is generated with its content (template won't get expanded)
+    - collected for table of contents
   - ul starts with `- `, `+ ` or `* ` and can be nested
   - ol starts with `r/\d+\. /` and can be nested
   - codeblock starts with triple backticks (not indent) and characters inside are escaped
+    - `lang-` class (for [highlight.js](https://highlightjs.org/))
   - hr is `r/---*/`
-  - blockquote starts with `> ` and can be nested (only with `>> `, `>>> `, ...)
-  - a line containing only `;;;off` turns off parser until another `;;;on`
+  - blockquote starts with `>` (no space) and can be nested (`>>`, `>>>`, ...)
+  - a line `;;;off` turns off the parser until another `;;;on`
     - any element can be output by raw HTML
   - otherwise it's p
 - inline element
@@ -30,7 +34,5 @@ I will support Markdown syntaxes that I remember only.
   - variable in frontmatter is `{name}`
 Note that `<table>` and `<img>` are not supported.
 
-The parser tries to parse text line by line.
-
 Codeblock and link url are not customizable.
-Self-closing tag cannot be customized to produce a closing tag.
+Self-closing tags cannot be customized to produce a closing tag.

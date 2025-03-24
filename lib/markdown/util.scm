@@ -1,9 +1,10 @@
 (define-module lib.markdown.util
   (use lib.util :prefix u:)
+
   (export ignore-substring
 	  char->escaped
 	  drop-newline!
-	  
+
 	  count-leading-spaces
 	  count-leading-digits
 	  count-leading->s
@@ -17,11 +18,14 @@
 
 	  rev-list->string
 
-	  display-raw   display-raw*
+	  display-raw display-raw*
 	  displayln-raw displayln-raw*
 
 	  get-custom-tag
-	  format-close-tag format-open-tag))
+	  format-close-tag format-open-tag
+	  addto-raw addto-classname
+
+	  header->id))
 
 (select-module lib.markdown.util)
 
@@ -47,17 +51,17 @@
 (define (char->escaped c) (hash-table-get escape-table c c))
 
 (define count-leading-spaces
-  (u:count-leading-pred (cut char=? #\space <>)))
+  (u:count-leading-pred (pa$ char=? #\space)))
 
 (define count-leading-digits
   (u:count-leading-pred (cut char<=? #\0 <> #\9)))
 
 ;; blockquote (no space between >s)
-(define count-leading->s (u:count-leading-pred (cut char=? #\> <>)))
+(define count-leading->s (u:count-leading-pred (pa$ char=? #\>)))
 
-(define |count-leading-#s| (u:count-leading-pred (cut char=? #\# <>)))
+(define |count-leading-#s| (u:count-leading-pred (pa$ char=? #\#)))
 
-(define count-leading--s (u:count-leading-pred (cut char=? #\- <>)))
+(define count-leading--s (u:count-leading-pred (pa$ char=? #\-)))
 
 (define (xs->string xs)
   ($ string-append $* map x->string xs))
@@ -112,10 +116,10 @@
 
 (define (get-custom-tag env sym)
   (if-let1 data (alist-ref (hash-table-get env 'custom-tag '()) sym)
-	   (let* ([data (alist-adjoin data 'tag sym)] ; if 'tag is changed, it will break
-		  [data (alist-update-in data '(tagname) identity equal? (symbol->string sym))])
-	     data)
-	   `((tagname . ,(symbol->string sym)) (tag . ,sym))))
+    (let* ([data (alist-adjoin data 'tag sym)] ; if 'tag is changed, it will break
+	   [data (alist-update-in data '(tagname) identity equal? (symbol->string sym))])
+      data)
+    `((tagname . ,(symbol->string sym)) (tag . ,sym))))
 
 (define (format-close-tag data) #"</~(alist-ref data 'tagname)>")
 
@@ -128,3 +132,24 @@
 			    (if raw `(,raw) '()))]
 	 [str       (string-join names)])
     #"<~|str|>"))
+
+;; append string. avoid extra space
+(define (make-addto syms)
+  (lambda (data str)
+    (alist-update-in data
+		     syms
+		     (^l (if l (string-append l " " str) str))
+		     equal?
+		     #f)))
+
+(define addto-raw (make-addto '(raw)))
+(define addto-classname (make-addto '(classname)))
+
+(define id-replace (hash-table-from-pairs 'eq? '(#\space . #\-)))
+
+;; spaces are replaced by -
+(define (header->id str)
+  ($ list->string
+     $ map char-downcase
+     $ map (^c (hash-table-get id-replace c c))
+     $ string->list str))
