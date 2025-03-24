@@ -1,62 +1,28 @@
 ;; can I parse markdown line by line, without loading the whole content at once?
 
-(define-module markdown.all		; for test
+(define-module lib.markdown-all		; for test
+  (use lib.util :prefix u:)
+  (use lib.markdown.util :prefix util:)
+
+  (use lib.markdown.inline :only (branch-inline!))
+  
   (export-all))
 
-(define-module markdown
-  (import markdown.all)
+(define-module lib.markdown
+  (import lib.markdown-all)
   (export markdown->html!))
 
-(select-module markdown.all)
-
-;; force output port
-(define (display-raw d out) (display d out))
-
-(define (display-raw* . data)
-  (define out (last data))
-  (for-each (cut display-raw <> out) (drop-right data 1)))
-
-(define (displayln-raw d out)
-  (display-raw d out)
-  (display-raw #\newline out))
-
-(define (displayln-raw* . data)
-  (define out (last data))
-  (apply display-raw* data)
-  (display-raw #\newline out))
-
-(define (string-prefix? short long)
-  (define short-n (string-length short))
-  (define long-n (string-length long))
-  (and (<= short-n long-n) (string=? short (substring long 0 short-n))))
-
-;; takes care of length when (invalid) input is too short
-(define (ignore-first-length ignore-first s)
-  (min ignore-first (string-length s)))
-
-(define (ignore-substring ignore-first s)
-  (substring s (ignore-first-length ignore-first s) -1))
-
-;; convenience
-(define (newline? c) (equal? #\newline c))
-
-;; inside <code> only
-(define escape-table
-  (hash-table-from-pairs 'eq? '(#\< . "&lt;") '(#\> . "&gt;") #;'(#\& . "&amp;") '(#\" . "&quot;")))
-;; should check if it really should be escaped or not
-;; for now just avoid &amp; to be able to output &grave;
-
-(define (char->escaped c) (hash-table-get escape-table c c))
+(select-module lib.markdown-all)
 
 ;; ---------------------------------------------------------------------------------------------------
-;; pre code
+;; handle block level elements: ul, li, p, ...
 
 ;; ``` must exist
 ;; codeblock's tagname is ignored!
 (define (next-codeblock line in out env)
-  (define ignore-first (hash-table-get env 'ignore-first 0))
-  (define this-line (ignore-substring ignore-first line))
-  (define data (env-tag-data env 'codeblock))
+  (define ignore-first (hash-table-get env 'q 0))
+  (define this-line (util:ignore-substring ignore-first line))
+  (define data (util:get-custom-tag env 'codeblock))
   
   (define lang (substring this-line 3 -1)) ; no nesting unlike lists
   (define cls (alist-ref data 'classname))
@@ -64,84 +30,18 @@
 		       (if (> (string-length lang) 0) `(,#"language-~|lang|") '())))
   (define raw (alist-ref data 'raw))
   (define attr (append '("code") (if (null? clss) '() `(,#"class=\"~(string-join clss)\"")) (if raw `(,raw) '())))
-  (display-raw #"<pre><~(string-join attr)>" out)
+  (util:display-raw #"<pre><~(string-join attr)>" out)
 
-  (let1 ignore-first (hash-table-get env 'ignore-first 0)
-	(let loop ()
-	  (and-let* ([whole-line (read-line in)]
-		     [           (not (eof-object? whole-line))]
-		     [line       (ignore-substring ignore-first whole-line)]
-		     [           (not (string=? "```" line))])
-	    ($ for-each (cut display-raw <> out) $ map char->escaped $ string->list line)
-	    (display-raw #\newline out)
-	    (loop))))
+  (let loop ()
+    (and-let* ([whole-line (read-line in)]
+	       [           (not (eof-object? whole-line))]
+	       [line       (util:ignore-substring ignore-first whole-line)]
+	       [           (not (string=? "```" line))])
+      ($ for-each (cut util:display-raw <> out) $ map util:char->escaped $ string->list line)
+      (util:display-raw #\newline out)
+      (loop)))
 
-  (displayln-raw "</code></pre>" out))
-
-;; make procedure that counts first characters whose count? is #t
-(define ((count-leading-pred count?) s)
-  (define n (string-length s))
-  (let loop ([at 0])
-    (if (or (<= n at) ($ not $ count? $ string-ref s at))
-	at
-	(loop (+ 1 at)))))
-
-(define count-leading-spaces
-  (count-leading-pred (cut char=? #\space <>)))
-
-(define count-leading-digits
-  (count-leading-pred (cut char<=? #\0 <> #\9)))
-
-(define (ul-prefix-length s)
-  (and (or (string-prefix? "+ " s) (string-prefix? "- " s) (string-prefix? "* " s))
-       2))
-
-(define (ol-prefix-length s)
-  (and-let* ([n (count-leading-digits s)]
-	     [  (> n 0)]
-	     [  (string-prefix? ". " (substring s n -1))])
-    (+ 2 n)))
-
-;; ---------------------------------------------------------------------------------------------------
-
-;; blockquote (no space between >s)
-(define count-leading->s (count-leading-pred (cut char=? #\> <>)))
-
-(define (q-prefix-length s)
-  (and-let* ([n (count-leading->s s)]
-	     [  (> n 0)])
-    n))
-
-(define |count-leading-#s| (count-leading-pred (cut char=? #\# <>)))
-
-(define (h-prefix-length s)
-  (and-let* ([n (|count-leading-#s| s)]
-	     [  (> n 0)]
-	     [  (string-prefix? " " (substring s n -1))])
-    (+ 1 n)))
-
-;; we need to peek instead of read-line
-(define (drop-newline! in) (while (newline? (peek-char in)) (read-char in)))
-
-(define count-leading--s (count-leading-pred (cut char=? #\- <>)))
-
-(define (env-tag-data env sym)
-  (if-let1 data (alist-ref (hash-table-get env 'custom-tag '()) sym)
-	   (let* ([data (alist-adjoin data 'tag sym)] ; if 'tag is changed, it will break
-		  [data (alist-update-in data '(tagname) identity equal? (symbol->string sym))])
-	     data)
-	   `((tagname . ,(symbol->string sym)) (tag . ,sym))))
-
-(define (make-close-tag data) #"</~(alist-ref data 'tagname)>")
-(define (make-open-tag data)
-  (let* ([tagname   (alist-ref data 'tagname)]
-	 [classname (alist-ref data 'classname)]
-	 [raw       (alist-ref data 'raw)]
-	 [names     (append `(,tagname)
-			    (if classname `(,#"class=\"~|classname|\"") '())
-			    (if raw `(,raw) '()))]
-	 [str       (string-join names)])
-    #"<~|str|>"))
+  (util:displayln-raw "</code></pre>" out))
 
 ;; env is a hash-table with keys:
 ;; - 'user: alist, contains variables (coming from frontmatter)
@@ -150,15 +50,19 @@
 ;; block level syntax is handled here. tags (except <p>) are on stack
 (define (markdown->html! in out env)
   (define stack-bottom '())
+  (define empty-stack `(,stack-bottom))
 
-  (define (tag-data sym) (env-tag-data env sym))
+  (define (tag-data sym) (util:get-custom-tag env sym))
+  
+  ;; takes care of lists <li>
+  ;; after this called stack may be popped
   (define (close-tag data)
     (case (alist-ref data 'tag)
       [(ul ol) (when (alist-ref data 'open)
 		 (close-tag (tag-data 'li)))])
-    (displayln-raw (make-close-tag data) out))
-  (define (open-tag data)
-    (display-raw (make-open-tag data) out))
+    (util:displayln-raw (util:format-close-tag data) out))
+  
+  (define (open-tag data) (util:display-raw (util:format-open-tag data) out))
 
   (define (pop-stack stack)
     (close-tag (car stack))
@@ -166,121 +70,128 @@
   (define (pop-stack-all stack)
     (let loop ([stack stack])
       (if (eq? stack-bottom (car stack))
-	  `(,stack-bottom)
+	  empty-stack
 	  (begin (close-tag (car stack))
 		 (loop (cdr stack))))))
 
   (define (fresh-env/q q)		; clear inline
     (define ht (hash-table-copy env))
-    (hash-table-set! ht 'ignore-first q)
+    (hash-table-set! ht 'q q)
     ht)
 
-  (define (begin-ul! line stack q loop-env
-		     spaces this-line-clean
-		     ul-sym ol-sym n loop)
-    (let* ([top   (car stack)]
-	   [tag   (alist-ref top 'tag)]
-	   [level (alist-ref top 'level)]
-	   [data  (alist-adjoin (tag-data ul-sym) 'level spaces)])
+  ;; the line's prefix is ul
+  (define (begin-ul! line stack loop-env fresh-env loop ; loop environment
+		     spaces		; for list level
+		     line-clean		; no space, maybe printed out
+		     ul-sym ol-sym)
+    (let* ([top           (car stack)]
+	   [tag           (alist-ref top 'tag)]
+	   [level         (alist-ref top 'level)]
+	   [data-this-ul  (alist-adjoin (tag-data ul-sym) 'level spaces)]
+
+	   [close-ul (cut close-tag (tag-data ul-sym))]
+	   [close-ol (cut close-tag (tag-data ol-sym))]
+	   [close-li (cut close-tag (tag-data 'li))]
+	   [open-ul  (cut open-tag  (tag-data ul-sym))]
+	   [open-ol  (cut open-tag  (tag-data ol-sym))]
+	   [open-li  (cut open-tag  (tag-data 'li))]
+	   
+	   [new-ul-loop (u:thunk
+			 (open-ul)
+			 (let1 stack (u:->> (cdr stack)
+					    (cons (alist-adjoin top 'open #f)) ; li closed
+					    (cons data-this-ul))
+			       (loop line stack (fresh-env))))])
+      
+      (when (alist-ref top 'open) (close-li))
       (cond
-	[(equal? ul-sym tag)		; <ul> is open
+	[(equal? ul-sym tag)		; <ul> is open for this level
 	 (cond [(= level spaces)	; new <li>
-		(when (alist-ref top 'open) (close-tag (tag-data 'li)))
-		(open-tag (tag-data 'li))
-		(let1 loop-env (fresh-env/q q)
-		      (branch-inline! this-line-clean out loop-env)
-		      (loop (read-line in) (cons (alist-adjoin top 'open #t)
-						 (cdr stack))
-			    q loop-env))]
+	        (open-li)
+		(let ([loop-env (fresh-env)] ; preserve inline format for newlines
+		      [stack    (u:->> (cdr stack)
+				       (cons (alist-adjoin top 'open #t)))])
+		  (branch-inline! line-clean out loop-env)
+		  (loop (read-line in) stack loop-env))]
 	       [(> level spaces)	; this <ul> end
-		(when (alist-ref top 'open) (close-tag (tag-data 'li)))
-		(close-tag (tag-data ul-sym))
-		(loop line (cdr stack) q loop-env)]
+		(close-ul)
+		(loop line (cdr stack) loop-env)]
 	       [else			; new <ul>
-		(when (alist-ref top 'open) (close-tag (tag-data 'li)))
-		(open-tag (tag-data ul-sym))
-		(loop line (cons data (cons (alist-adjoin top 'open #f)
-					    (cdr stack)))
-		      q (fresh-env/q q))])]
+		(new-ul-loop)])]
 	[(equal? ol-sym tag)
 	 (cond [(= level spaces) ; new <ul> at the same level as this <ol>
-		(when (alist-ref top 'open) (close-tag (tag-data 'li)))
-		(close-tag (tag-data ol-sym))
-		(open-tag (tag-data ul-sym))
-		(loop line (cons data (cdr stack)) q (fresh-env/q q))]
+		(close-ol)
+		(open-ul)
+		(loop line (cons data-this-ul (cdr stack)) (fresh-env))]
 	       [(> level spaces)	; this <ol> end
-		(when (alist-ref top 'open) (close-tag (tag-data 'li)))
-		(close-tag (tag-data ol-sym))
-		(loop line (cdr stack) q loop-env)]
-	       [else			; new <ul>
-		(when (alist-ref top 'open) (close-tag (tag-data 'li)))
-		(open-tag (tag-data ul-sym))
-		(loop line (cons data (cons (alist-adjoin top 'open #f)
-					    (cdr stack)))
-		      q (fresh-env/q q))])]
+		(close-ol)
+		(loop line (cdr stack) loop-env)]
+	       [else
+		(new-ul-loop)])]
 	[else				; new <ul><li>
-	 (let1 next-stack (pop-stack-all stack)
-	       (open-tag (tag-data ul-sym)) ; new <li> open in next loop
-	       (loop line (cons data next-stack)
-		     q (fresh-env/q q)))])))
+	 (let1 stack (pop-stack-all stack)
+	       (open-ul)	  ; new <li> will be open in next loop
+	       (loop line (cons data-this-ul stack) (fresh-env)))])))
 
-  (let loop ([line (read-line in)] [stack `(,stack-bottom)] [q 0] [loop-env env])
+  (let loop ([line (read-line in)] [stack empty-stack] [loop-env env])
     (if (not (string? line))
         (pop-stack-all stack)
-	(let* ([next-q            (or (q-prefix-length line) 0)]
-	       [this-line         (substring line next-q -1)]
-	       [spaces            (count-leading-spaces this-line)]
-	       [this-line-nospace (substring this-line spaces -1)])
+	(let* ([q             (hash-table-get loop-env 'q 0)]
+	       [next-q        (or (util:q-prefix-length line) 0)]
+	       [line-noq      (substring line next-q -1)] ; without blockquote >s
+	       [spaces        (util:count-leading-spaces line-noq)]
+	       [line-noq-nosp (substring line-noq spaces -1)]) ; without leading space
 	  (cond
 	   [(< q next-q)		; open <blockquote>
-	    (let1 next-stack (pop-stack-all stack)
+	    (let1 stack (pop-stack-all stack)
 		  (open-tag (tag-data 'blockquote))
-		  (let1 next-line (loop line `(,stack-bottom) next-q loop-env)
+		  (let1 line (loop line empty-stack (fresh-env/q next-q))
 			(close-tag (tag-data 'blockquote))
-			(loop next-line next-stack q loop-env)))]
+			(loop line stack (fresh-env/q q))))]
 
 	   [(> q next-q)		; close <blockquote>
 	    (pop-stack-all stack)
 	    line]
 
+	   ;; blockquote level ok
 	   [(string=? "" line)		; reset, q is zero
-	    (let1 next-stack (pop-stack-all stack)
-		  (drop-newline! in)
-		  (loop (read-line in) next-stack q (fresh-env/q q)))]
+	    (let1 stack (pop-stack-all stack)
+		  (util:drop-newline! in)
+		  (loop (read-line in) stack (fresh-env/q q)))]
 
 	   [(string=? ";;;off" line)	; parser off
 	    (until (read-line in)
 		   (^s (or (not (string? s)) (string=? ";;;on" s))) => line
-		   (displayln-raw line out))
-	    (loop (read-line in) stack q loop-env)]
+		   (util:displayln-raw line out))
+	    (loop (read-line in) stack loop-env)]
 
-	   [(and (string-prefix? "---" this-line) ; <hr>
-		 (= (string-length this-line) (count-leading--s this-line)))
-	    (let1 next-stack (pop-stack-all stack)
+	   [(and (u:string-prefix? "---" line-noq) ; <hr>
+		 (= (string-length line-noq) (util:count-leading--s line-noq)))
+	    (let1 stack (pop-stack-all stack)
 		  (open-tag (tag-data 'hr))
-		  (loop (read-line in) next-stack q (fresh-env/q q)))]
+		  (loop (read-line in) stack (fresh-env/q q)))]
 
-	   [(string-prefix? "```" this-line) ; <pre><code>
-	    (let1 next-stack (pop-stack-all stack)
+	   [(u:string-prefix? "```" line-noq) ; <pre><code>
+	    (let1 stack (pop-stack-all stack)
 		  (next-codeblock line in out (fresh-env/q q)) ; blockquote level needed
-		  (loop (read-line in) next-stack q (fresh-env/q q)))]
+		  (loop (read-line in) stack (fresh-env/q q)))]
 
-	   [(h-prefix-length this-line) => ; <h1> and friends
-	    (^n (let* ([next-stack (pop-stack-all stack)]
-		       [tag        (string->symbol #"h~(min 6 (|count-leading-#s| this-line))")])
+	   [(util:h-prefix-length line-noq) => ; <h1> and friends
+	    (^n (let* ([stack (pop-stack-all stack)]
+		       [tag   (string->symbol #"h~(min 6 (|util:count-leading-#s| line-noq))")])
 		  (open-tag (tag-data tag))
-		  (branch-inline! (substring this-line n -1) out (fresh-env/q q))
+		  (branch-inline! (substring line-noq n -1) out (fresh-env/q q))
 		  (close-tag (tag-data tag))
-		  (loop (read-line in) next-stack q (fresh-env/q q))))]
+		  (loop (read-line in) stack (fresh-env/q q))))]
 
-	   [(ul-prefix-length this-line-nospace) =>
-	    (^n (begin-ul! line stack q loop-env
-			   spaces (substring this-line-nospace n -1)
-			   'ul 'ol n loop))]
-	   [(ol-prefix-length this-line-nospace) =>
-	    (^n (begin-ul! line stack q loop-env
-			   spaces (substring this-line-nospace n -1)
-			   'ol 'ul n loop))]
+	   [(util:ul-prefix-length line-noq-nosp) =>
+	    (^n (begin-ul! line stack loop-env (cut fresh-env/q q) loop
+			   spaces (substring line-noq-nosp n -1)
+			   'ul 'ol))]
+	   [(util:ol-prefix-length line-noq-nosp) =>
+	    (^n (begin-ul! line stack loop-env (cut fresh-env/q q) loop
+			   spaces (substring line-noq-nosp n -1)
+			   'ol 'ul))]
 	   
 	   [else			; some <p>
 	    (let* ([top  (car stack)]
@@ -288,260 +199,20 @@
 		   [data (tag-data 'p)])
 	      (case tag
 		[(p)			; <p> already open
-		 (display-raw #\newline out)
-		 (branch-inline! this-line-nospace out loop-env)
-		 (loop (read-line in) stack q loop-env)]
+		 (util:display-raw #\newline out)
+		 (branch-inline! line-noq out loop-env)
+		 (loop (read-line in) stack loop-env)]
 		[(ul ol)		; no p inside li
-		 (if (< 0 spaces)	; takes whatever indent as inside li
-		     (begin
-		       (display-raw #\newline out)
-		       (branch-inline! this-line-nospace out loop-env)
-		       (loop (read-line in) stack q loop-env))
-		     (let1 next-stack (pop-stack-all stack)
+		 (if (< 0 spaces)
+		     (begin	  ; takes whatever indent as inside li
+		       (util:display-raw #\newline out)
+		       (branch-inline! line-noq-nosp out loop-env)
+		       (loop (read-line in) stack loop-env))
+		     (let1 stack (pop-stack-all stack)
 			   (open-tag (tag-data 'p))
-			   (branch-inline! this-line-nospace out loop-env)
-			   (loop (read-line in) (cons data next-stack) q loop-env)))]
+			   (branch-inline! line-noq-nosp out loop-env)
+			   (loop (read-line in) (cons data stack) loop-env)))]
 		[else			; new <p>
 		 (open-tag (tag-data 'p))
-		 (branch-inline! this-line-nospace out loop-env)
-		 (loop (read-line in) (cons data stack) q loop-env)]))])))))
-
-(define (xs->string xs)
-  ($ string-append $* map x->string xs))
-
-;; links are tedious to parse
-;; I couldn't parse ![...](...) without looking ahead, ! is so common
-;; there is untested remnants, it's harmless and I may be able to choose different syntax
-
-(define (branch-inline! line out env)
-  (define n (string-length line))
-  (define inline-stack-bottom 'no)
-  
-  (define (get-inline-stack) (hash-table-get env 'inline-stack `(,inline-stack-bottom)))
-  (define (push-inline-stack! sym)	; always car'ed
-    (hash-table-update! env 'inline-stack (cut cons sym <>) `(,inline-stack-bottom)))
-  (define (pop-inline-stack!) (hash-table-pop! env 'inline-stack))
-
-  ;; after pop
-  ;; when [here](), text should put inside 'a-text or 'img-text, accordingly
-  (define (push-or-acc! c acc)
-    (if-let1 sym (find (^s (or (equal? 'a-text s)
-			       (equal? 'img-text s)))
-		       (get-inline-stack))
-	     (begin (hash-table-push! env sym c)
-		    acc)
-	     (cons c acc)))
-
-  (define (make-pos-* ch)
-    (^i (if (char=? ch (string-ref line i))
-	    (+ 1 i)
-	    #f)))
-  (define pos-* (make-pos-* #\*))
-  (define pos-_ (make-pos-* #\_))
-
-  (define (make-pos-** double)
-    (^i (if (and (< (+ 1 i) n) (string=? double (substring line i (+ 2 i))))
-	    (+ 2 i)
-	    #f)))
-  (define pos-** (make-pos-** "**"))
-  (define pos-__ (make-pos-** "__"))
-  (define pos-~~ (make-pos-** "~~"))
-
-  ;; greedily match
-  (define (open-close-something sym tag acc)
-    (^i (let* ([stack (get-inline-stack)]
-	       [top   (car stack)])
-	  (if (equal? sym top)
-	      (begin			; close
-		(pop-inline-stack!)
-		`(,i ,(push-or-acc! (make-close-tag (env-tag-data env tag)) acc)))
-	      (begin			; open
-		(push-inline-stack! sym)
-		`(,i ,(push-or-acc! (make-open-tag (env-tag-data env tag)) acc)))))))
-
-  (define (|until-`| i acc should-push)
-    (when should-push
-      (push-inline-stack! 'code))
-    (let1 acc (push-or-acc! (if should-push (make-open-tag (env-tag-data env 'code)) "") acc)
-	  (let loop ([i i] [acc acc])
-	    (if (< i n)
-		(case (string-ref line i)
-		  [(#\`)
-		   (pop-inline-stack!)
-		   `(,(+ 1 i) ,(push-or-acc! (make-close-tag (env-tag-data env 'code)) acc))]
-		  [else			; why can't I use cut here
-		   => (^c
-		       (loop (+ 1 i)
-			     (push-or-acc! (char->escaped c) acc)))])
-		`(,i ,acc)))))
-
-  (define (|something-until-)|
-	   a-link-sym			; on stack
-	   a-text-sym a-url-sym		; env
-	   format)			; takes text and url
-    (lambda (i acc should-push)
-      (when should-push
-	(push-inline-stack! a-link-sym))
-      (let loop ([i i])
-	(if (< i n)
-	    (case (string-ref line i)
-	      [(#\))
-	       (pop-inline-stack!)
-	       (begin0
-		`(,(+ 1 i)
-		  ,(push-or-acc! (let ([text ($ xs->string $ reverse $ hash-table-get env a-text-sym #f)]
-				       [url  ($ xs->string $ reverse $ hash-table-get env a-url-sym  #f)])
-				   (format text url))
-				 acc))
-		(hash-table-delete! env a-text-sym)
-		(hash-table-delete! env a-url-sym))]
-	      [else => (^c (hash-table-push! env a-url-sym c)
-			   (loop (+ 1 i)))])
-	    `(,i ,acc)))))
-
-  ;; I probably should create symbol from string..
-  (define |a-until-)|
-    (|something-until-)|
-     'a-link 'a-text 'a-url
-     (lambda (text url)
-       (let* ([url-format #"href=\"~|url|\""] ; add to 'raw
-	      [data       (env-tag-data env 'a)]
-	      [data       (alist-update-in data '(raw)
-					   (^l (if l
-						   (string-append url-format " " l)
-						   url-format))
-					   equal? #f)]
-	      [open       (make-open-tag data)]
-	      [close      (make-close-tag data)])
-	 (string-append open text close)))))
-
-  (define |img-until-)| (|something-until-)|
-			 'img-link 'img-text 'img-url
-			 (lambda (text url) #"<img src=\"~|url|\" alt=\"~|text|\">")))
-
-  ;; next string cleaning up closed links
-  (define (a-img-wasnt c acc)
-    (case (car (get-inline-stack))
-      [(a-text-closed)
-       (let* ([text      ($ xs->string $ reverse $ hash-table-get env 'a-text #f)]
-	      [formatted #"[~|text|]~|c|"])
-	 (pop-inline-stack!)
-	 (hash-table-delete! env 'a-text)
-	 (cons formatted acc))]
-      [(img-text-closed)
-       (let* ([text      ($ xs->string $ reverse $ hash-table-get env 'img-text #f)]
-	      [formatted #"![~|text|]~|c|"])
-	 (pop-inline-stack!)
-	 (hash-table-delete! env 'img-text)
-	 (cons formatted acc))]
-      [else				; line end (newline)
-       acc]))
-
-  (define (|until-}| i acc should-push)
-    (if should-push
-	(push-inline-stack! 'variable)
-	;; newline is space
-	(hash-table-push! env 'variable-name #\space))
-    (let loop ([i i])
-      (if (< i n)
-	  (case (string-ref line i)
-	    [(#\})
-	     (pop-inline-stack!)
-	     (begin0
-	      `(,(+ 1 i)
-		,(push-or-acc! (and-let* ([name-rev (hash-table-get env 'variable-name #f)]
-					  [name     (list->string (reverse name-rev))]
-					  [user     (hash-table-get env 'user #f)]
-					  [data     (alist-ref user name)])
-				 data)
-			       acc))
-	      (hash-table-delete! env 'variable-name))]
-	    [else => (^c (hash-table-push! env 'variable-name c)
-			 (loop (+ 1 i)))])
-	  `(,i ,acc))))
-
-  ;; returns next i and acc
-  (define (branch! i acc)
-    (if (>= i n)
-	`(,i ,acc)
-	(let ([top (car (get-inline-stack))]
-	      [c   (string-ref line i)])
-	  (case top
-	    ;; characters that have to immediately follow
-	    [(a-text-closed)
-	     (if (char=? #\( c)
-		 (begin
-		   (pop-inline-stack!)
-		   (apply branch! (|a-until-)| (+ 1 i) acc #t)))
-		 `(,(+ 1 i) ,(a-img-wasnt c acc)))]
-	    [(img-text-closed)
-	     (if (char=? #\( c)
-		 (begin
-		   (pop-inline-stack!)
-		   (apply branch! (|img-until-)| (+ 1 i) acc #t)))
-		 `(,(+ 1 i) ,(a-img-wasnt c acc)))]
-	    [(!)
-	     (if (char=? #\[ c)
-		 (begin
-		   (pop-inline-stack!)
-		   (push-inline-stack! 'img-text)
-		   `(,(+ 1 i) ,acc))
-		 (begin
-		   (pop-inline-stack!)
-		   `(,(+ 1 i) ,(push-or-acc! "![" acc))))]
-	    [else
-	     ;; verbatim
-	     (cond [(equal? 'code top)
-		    (apply branch! (|until-`| i acc #f))]
-		   [(equal? 'variable top)
-		    (apply branch! (|until-}| i acc #f))]
-		   [(equal? 'a-link top)
-		    (apply branch! (|a-until-)| i acc #f))]
-		   [(equal? 'img-link top)
-		    (apply branch! (|img-until-)| i acc #f))]
-		   [(char=? #\` c)
-		    (apply branch! (|until-`| (+ 1 i) acc #t))]
-		   [(char=? #\{ c)
-		    (apply branch! (|until-}| (+ 1 i) acc #t))]
-		   ;; url text
-		   [(and (char=? #\[ c)	; don't nest
-			 (not (or (equal? 'a-text top)
-				  (equal? 'img-text top))))
-		    (push-inline-stack! 'a-text)
-		    `(,(+ 1 i) ,acc)]
-		   ;; img
-		   #;
-		   [(and (char=? #\! c) (not (equal? 'img-text top)))
-		    (push-inline-stack! '!)
-		    `(,(+ 1 i) ,acc)]
-		   [(and (char=? #\] c) (equal? 'a-text top))
-		    (pop-inline-stack!)
-		    (push-inline-stack! 'a-text-closed)
-		    `(,(+ 1 i) ,acc)]
-		   [(and (char=? #\] c) (equal? 'img-text top))
-		    (pop-inline-stack!)
-		    (push-inline-stack! 'img-text-closed)
-		    `(,(+ 1 i) ,acc)]
-		   
-		   [(pos-** i) => (open-close-something 'strong-** 'strong acc)]
-		   [(pos-__ i) => (open-close-something 'strong-__ 'strong acc)]
-		   [(pos-~~ i) => (open-close-something 'strike-~~ 's      acc)]
-		   [(pos-*  i) => (open-close-something 'em-*      'em     acc)]
-		   [(pos-_  i) => (open-close-something 'em-_      'em     acc)]
-		   [else
-		    `(,(+ 1 i) ,(push-or-acc! c acc))])]))))
-  
-  (let loop ([i 0] [acc '()])
-    (let* ([l   (branch! i acc)]
-	   [i   (car l)]
-	   [acc (cadr l)])
-      (if (< i n)
-	  (loop i acc)
-	  (begin
-	    (if-let1 sym (find (^s (or (equal? 'a-text s)
-				       (equal? 'img-text s)))
-			       (get-inline-stack))
-		     (hash-table-push! env sym #\newline))
-	    ($ for-each
-	       (cut display-raw <> out)
-	       $ reverse $ a-img-wasnt #\newline acc))))))
+		 (branch-inline! line-noq out loop-env)
+		 (loop (read-line in) (cons data stack) loop-env)]))])))))
