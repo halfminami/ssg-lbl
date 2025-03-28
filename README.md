@@ -31,8 +31,26 @@ It doesn't validate input.
   - emph starts with `_` or `*`
   - strong starts with `__` or `**`
   - strikethrough starts with `~~`
-  - variable in frontmatter is `{name}`
+  - variable in frontmatter is `{{name}}`
 Note that `<table>` and `<img>` are not supported.
 
 Codeblock and link url are not customizable.
 Self-closing tags cannot be customized to produce a closing tag.
+
+## Frontmatter
+
+Frontmatter starts with a line `---scm` and ends with a line `---`.
+It is only allowed at the very top of the file.
+
+like so:
+```
+---scm
+(define tomorrow "2025-03-20")
+`((created . "2025-03-19")
+  (modified . ,tomorrow))
+---
+
+This page was last modified on {{modified}}.
+```
+
+If no Frontmatter needed for the page, just omit it.

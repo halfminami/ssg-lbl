@@ -1,4 +1,6 @@
 (define-module lib.util
+  (use gauche.vport)
+  
   (export thunk
 	  
 	  -->
@@ -10,9 +12,16 @@
 	  string-prefix?
 	  count-leading-pred
 	  newline?
-	  string-empty?))
+	  string-empty?
+
+          eof-reached?
+          input-port-append
+          unget-line))
 
 (select-module lib.util)
+
+;; ---------------------------------------------------------------------------------------------------
+;; convenience macros
 
 (define-syntax thunk
   (syntax-rules () [(_ expr ...) (cut begin expr ...)]))
@@ -36,6 +45,8 @@
     [(_ acc bind) acc]
     [(_ acc bind arg args ...) (let1 bind acc (as-> arg bind args ...))]))
 
+;; ---------------------------------------------------------------------------------------------------
+
 (define (equal-one-of? sym . syms) (any (^s (if (equal? sym s) s #f)) syms))
 
 (define (string-prefix? short long)
@@ -55,3 +66,34 @@
 (define (newline? c) (equal? #\newline c))
 
 (define (string-empty? s) (= 0 (string-length s)))
+
+;; ---------------------------------------------------------------------------------------------------
+;; custom input port to merge multiple input ports
+;; like the one in Racket https://docs.racket-lang.org/reference/port-lib.html#%28def._%28%28lib._racket%2Fport..rkt%29._input-port-append%29%29
+
+(define (eof-reached? in) (eof-object? (peek-char in)))
+
+(define (input-port-append . input-ports)
+  (define ins input-ports)
+  
+  (define (get-input-port!)
+    (cond [(null? ins)
+           #f]
+          [(eof-reached? (car ins))
+           (close-input-port (pop! ins))
+           (get-input-port!)]
+          [else
+           (car ins)]))
+  
+  (make <virtual-input-port>           ; only methods that I recognize
+    :getb (^() (and-let1 in (get-input-port!)
+                 (read-byte in)))
+    :getc (^() (and-let1 in (get-input-port!)
+                 (read-char in)))
+    :ready (^b (if-let1 in (get-input-port!)
+                 (if b (char-ready? in) (byte-ready? in))
+                 #t))
+    :close (^() (for-each close-input-port ins))))
+
+(define (unget-line line in)
+  (input-port-append (open-input-string #"~|line|\n") in))

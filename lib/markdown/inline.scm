@@ -47,6 +47,9 @@
   (define pos-__ (make-pos-** "__"))
   (define pos-~~ (make-pos-** "~~"))
 
+  (define |pos-{{| (make-pos-** "{{"))
+  (define |pos-}}| (make-pos-** "}}"))
+
   ;; greedily match
   (define (open-close-something sym tag acc)
     (^i (let* ([stack (get-inline-stack)]
@@ -139,29 +142,27 @@
 
   (define (|a-img-(-should-follow?|)
     (u:equal-one-of? (car (get-inline-stack)) 'a-text-closed 'img-text-closed))
-
-  (define (|until-}| i acc should-push)
-    (if should-push
-      (push-inline-stack! 'variable)
-      ;; newline is space
-      (hash-table-push! env 'variable-name #\space))
+  
+  (define (|until-}}| i acc should-push)
+    (when should-push
+      (push-inline-stack! 'variable))
     (let loop ([i i])
-      (if (< i n)
-	(case (string-ref line i)
-	  [(#\})
-	   (pop-inline-stack!)
-	   (begin0
-	       `(,(+ 1 i)
-		 ,(push-or-acc! (and-let* ([name-rev (hash-table-get env 'variable-name #f)]
-					   [name     (list->string (reverse name-rev))]
-					   [user     (hash-table-get env 'user #f)]
-					   [data     (alist-ref user name)])
-				  data)
-			        acc))
-	     (hash-table-delete! env 'variable-name))]
-	  [else => (^c (hash-table-push! env 'variable-name c)
-		       (loop (+ 1 i)))])
-	`(,i ,acc))))
+      (cond [(>= i n) `(,i ,acc)]
+            [(|pos-}}| i) =>
+             (^i
+	      (pop-inline-stack!)
+              (begin0
+                  `(,i
+                    ,(push-or-acc! (and-let* ([name-rev (hash-table-get env 'variable-name #f)]
+					      [name     (list->string (reverse name-rev))]
+					      [user     (hash-table-get env 'user #f)]
+					      [data     (alist-ref user name)])
+				     data)
+			           acc))
+                (hash-table-delete! env 'variable-name)))]
+            [(string-ref line i) =>
+             (^c (hash-table-push! env 'variable-name c)
+		 (loop (+ 1 i)))])))
 
   ;; returns next i and acc
   (define (branch! i acc)
@@ -193,14 +194,15 @@
 
 	  ;; verbatim
 	  [(code)     (apply branch! (|until-`| i acc #f))]
-	  [(variable) (apply branch! (|until-}| i acc #f))]
 	  [(a-link)   (apply branch! (|a-until-)| i acc #f))]
 	  [(img-link) (apply branch! (|img-until-)| i acc #f))]
+          [(variable)
+           (hash-table-push! env 'variable-name #\space) ; treat newline as space
+           (apply branch! (|until-}}| i acc #f))]
 	  [else
 	   (cond [(char=? #\` c)
 		  (apply branch! (|until-`| (+ 1 i) acc #t))]
-		 [(char=? #\{ c)
-		  (apply branch! (|until-}| (+ 1 i) acc #t))]
+                 [(|pos-{{| i) => (^i (apply branch! (|until-}}| i acc #t)))]
 		 ;; url text
 		 [(and (char=? #\[ c)	; don't nest
 		       (not (u:equal-one-of? top 'a-text 'img-text)))

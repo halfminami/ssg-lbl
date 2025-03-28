@@ -443,13 +443,15 @@ hello</strong> 6</li>
 <p>My <marquee>blog</marquee></p>
 <p>created at 2025-03-22</p>
 <ul><li>hello me!</li>
+<li>{this} is not a variable</li>
 </ul>
 "
        (run-markdown->html "\
-{title}
+{{title}}
 
-created at {created}
-- hello {name}!"
+created at {{created}}
+- hello {{name}}!
+- {this} is not a variable"
 			   (hash-table-from-pairs 'eq?
 						  '(user . (("title" . "My <marquee>blog</marquee>") ("created" . "2025-03-22") ("name" . "me")))))
        test-check-diff test-report-failure-diff)
@@ -457,8 +459,8 @@ created at {created}
 (test* "newline is space"
        "<p>\nHELLO</p>\n"
        (run-markdown->html "\
-{hello long
-name}"
+{{hello long
+name}}"
 			   (hash-table-from-pairs 'eq?
 						  '(user . (("hello long name" . "HELLO")))))
        test-check-diff test-report-failure-diff)
@@ -467,14 +469,14 @@ name}"
        (test-truthy)
        (run-markdown->html "\
 }}}{{{}}}
-{ja?
+{{ja?
 
-}
+}}
 
-- {run
-- away}
+- {{run
+- away}}
 
-{run away}"
+{{run away}}"
 			   (hash-table-from-pairs 'eq?
 						  '(user . ()))))
 
