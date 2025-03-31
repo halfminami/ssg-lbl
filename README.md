@@ -6,6 +6,7 @@
   - arbitrary Scheme
   - replace elements
 - simple templating
+  - master template (HTML only)
 
 ## Markdown parser
 
@@ -16,6 +17,8 @@ It doesn't validate input.
   - heading starts with `r/#+ /`
     - id is generated with its content (template won't get expanded)
     - collected for table of contents
+      - not available in frontmatter because it needs scanning the whole file
+        might prepend it
   - ul starts with `- `, `+ ` or `* ` and can be nested
   - ol starts with `r/\d+\. /` and can be nested
   - codeblock starts with triple backticks (not indent) and characters inside are escaped

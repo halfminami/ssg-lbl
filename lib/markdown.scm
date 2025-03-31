@@ -151,7 +151,7 @@
 	  (open-ul)               ; new <li> will be open in next loop
 	  (loop line (cons data-this-ul stack) (fresh-env)))])))
 
-  (let loop ([line (read-line in)] [stack empty-stack] [loop-env env])
+  (let loop ([line (read-line in)] [stack empty-stack] [loop-env (hash-table-copy env)])
     (if (not (string? line))
       (pop-stack-all stack)
       (let* ([q             (hash-table-get loop-env 'q 0)]

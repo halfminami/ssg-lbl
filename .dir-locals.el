@@ -1,3 +1,4 @@
+;; copied from https://github.com/shirok/Gauche/
 ((scheme-mode
   (indent-tabs-mode . nil)
   (lisp-local-indent

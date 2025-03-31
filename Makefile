@@ -1,4 +1,4 @@
-tests = lib/markdown/test.scm lib/markdown/inline_test.scm lib/util_test.scm lib/frontmatter/test.scm
+tests = lib/markdown/test.scm lib/markdown/inline_test.scm lib/util_test.scm lib/frontmatter/test.scm lib/html/test.scm
 test_record = test.record
 test_log = test.log
 

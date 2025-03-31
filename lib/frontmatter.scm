@@ -8,9 +8,7 @@
 
 (select-module lib.frontmatter.all)
 
-(define (eval-string str)
-  (define m (make-module #f))
-  
+(define (eval-string str m)
   `(,(call-with-input-string str
        (^i (let loop ([prev #f])
              (if (u:eof-reached? i)
@@ -21,13 +19,13 @@
 ;; returns list (data in)
 ;; if there's frontmatter, consumes it and data is (value module)
 ;; else, data is #f
-(define (read-frontmatter! in)
+(define (read-frontmatter! in m)
   (let1 line (read-line in)
     (if (string=? "---scm" line)
       (let1 acc '()
         (while (read-line in)
           (^s (and (string? s) (not (string=? "---" s)))) => line
           (push! acc line))
-        `(,(eval-string (string-join (reverse acc) "\n"))
+        `(,(eval-string (string-join (reverse acc) "\n") m)
           ,in))
       `(#f ,(u:unget-line line in)))))

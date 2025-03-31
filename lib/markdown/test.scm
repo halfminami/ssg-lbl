@@ -57,13 +57,8 @@ const b = 2 < 3;
 (test-section "markdown->html! w/o inline")
 
 (define (run-markdown->html str :optional [env (make-hash-table)])
-  (define in (open-input-string str))
-  (define out (open-output-string))
-
-  (markdown->html! in out env)
-  (begin0 (get-output-string out)
-    (close-input-port in)
-    (close-output-port out)))
+  (call-with-string-io str
+    (^(in out) (markdown->html! in out env))))
 
 ;; I could use list of strings, but the last newline was significant..
 (test* "flat"
