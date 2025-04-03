@@ -61,8 +61,8 @@ const b = 2 < 3;
     (^(in out) (markdown->html! in out env))))
 
 ;; I could use list of strings, but the last newline was significant..
-(test* "flat"
-       "\
+(test*/diff "flat"
+            "\
 <p>hello</p>
 <h1 id=\"hello\">HELLO</h1>
 <ul><li>l1</li>
@@ -70,16 +70,15 @@ const b = 2 < 3;
 <ol><li>l2</li>
 </ol>
 <hr>"
-       (run-markdown->html "\
+            (run-markdown->html "\
 hello
 # HELLO
 - l1
 1. l2
----")
-       test-check-diff test-report-failure-diff)
+---"))
 
-(test* "nest blockquote"
-       "\
+(test*/diff "nest blockquote"
+            "\
 <blockquote><h3 id=\"hello\">hello</h3>
 <blockquote><p>hi</p>
 </blockquote>
@@ -88,15 +87,14 @@ hello
 </blockquote>
 </blockquote>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 >### hello
 >>hi
 >whassup
->>nothin")
-       test-check-diff test-report-failure-diff)
+>>nothin"))
 
-(test* "lower list from ol to ul"
-       "\
+(test*/diff "lower list from ol to ul"
+            "\
 <ol><li>hello</li>
 <ol><li>hey</li>
 </ol>
@@ -104,14 +102,13 @@ hello
 <ul><li>duh</li>
 </ul>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 1. hello
   1. hey
-- duh")
-       test-check-diff test-report-failure-diff)
+- duh"))
 
-(test* "nest list"
-       "\
+(test*/diff "nest list"
+            "\
 <ul><li>top</li>
 <ul><li>middle</li>
 <ul><li>bottom</li>
@@ -132,7 +129,7 @@ hello
 <li>NUMBER</li>
 </ol>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 - top
   - middle
     - bottom
@@ -144,11 +141,10 @@ hello
 1. numbered 2
 1. numbered 3
   1. numbered 4
-04932. NUMBER")
-       test-check-diff test-report-failure-diff)
+04932. NUMBER"))
 
-(test* "lists combined"
-       "\
+(test*/diff "lists combined"
+            "\
 <ul><li>hello 1</li>
 <ul><li>hi 1</li>
 <ol><li>hell 1</li>
@@ -167,7 +163,7 @@ hello
 </ol>
 </ol>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 - hello 1
   - hi 1
     1. hell 1
@@ -176,11 +172,10 @@ hello
 1. hello 3
   - hi 3
   1. hi 4
-    - hell 2")
-       test-check-diff test-report-failure-diff)
+    - hell 2"))
 
-(test* "nest ul list"
-       "\
+(test*/diff "nest ul list"
+            "\
 <ul><li>hello 1</li>
 </ul>
 <ul><li>hello 2</li>
@@ -197,7 +192,7 @@ hello
 <li>hello 4</li>
 </ul>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 - hello 1
 
 + hello 2
@@ -208,11 +203,10 @@ hello
     * h 2
 - hello 3
   - hi 4
-- hello 4")
-       test-check-diff test-report-failure-diff)
+- hello 4"))
 
-(test* "nest ol list"
-       "\
+(test*/diff "nest ol list"
+            "\
 <ol><li>hello 1</li>
 </ol>
 <ol><li>hello 2</li>
@@ -229,7 +223,7 @@ hello
 <li>hello 4</li>
 </ol>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 1. hello 1
 
 1. hello 2
@@ -240,11 +234,10 @@ hello
     1. h 2
 1. hello 3
   1. hi 4
-1. hello 4")
-       test-check-diff test-report-failure-diff)
+1. hello 4"))
 
-(test* "flat ul"
-       "\
+(test*/diff "flat ul"
+            "\
 <ul><li>hello 1</li>
 <li>hello 2</li>
 </ul>
@@ -252,17 +245,16 @@ hello
 </ul>
 <p>what</p>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 - hello 1
 - hello 2
 
 - hello 3
 what
-")
-       test-check-diff test-report-failure-diff)
+"))
 
-(test* "nest blockquote"
-       "\
+(test*/diff "nest blockquote"
+            "\
 <blockquote><p>ok</p>
 <ul><li>hello</li>
 <ul><li>ok</li>
@@ -278,7 +270,7 @@ what
 <h1 id=\"-hey!\"> hey!</h1>
 </blockquote>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 >ok
 >- hello
 >  - ok
@@ -286,11 +278,10 @@ what
 >>- na
 >>  - mama
 >>TODO: allow blank line
->#  hey!")
-       test-check-diff test-report-failure-diff)
+>#  hey!"))
 
-(test* "inside blockquote"
-       "\
+(test*/diff "inside blockquote"
+            "\
 <blockquote><p>hello</p>
 <h1 id=\"hello\">HELLO</h1>
 <ul><li>l1</li>
@@ -303,7 +294,7 @@ what
 </code></pre>
 </blockquote>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 >hello
 ># HELLO
 >- l1
@@ -312,38 +303,35 @@ what
 >// who's gonna code inside quote
 >
 >// sad
->```")
-       test-check-diff test-report-failure-diff)
+>```"))
 
-(test* "para"
-       "\
+(test*/diff "para"
+            "\
 <p>hello
 hell</p>
 <p>hi
 bye</p>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 hello
 hell
 
 hi
-bye")
-       test-check-diff test-report-failure-diff)
+bye"))
 
-(test* "parser off"
-       "\
+(test*/diff "parser off"
+            "\
 <ul><li>hello<div>I AM ALIVE</div>
 </li>
 <li>did I see anything</li>
 </ul>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 - hello
 ;;;off
 <div>I AM ALIVE</div>
 ;;;on
-- did I see anything")
-       test-check-diff test-report-failure-diff)
+- did I see anything"))
 
 (test-section "markdown->html! w/ inline")
 
@@ -372,8 +360,8 @@ mah*
 hello**
 ----"))
 
-(test* "long"
-       "\
+(test*/diff "long"
+            "\
 <h1 id=\"hello!\">hello!</h1>
 <p>I am <em>building a <strong>
 blog</strong></em>!
@@ -389,7 +377,7 @@ should</strong> do it, though.</s></p>
 efficient</strong></em>.</p>
 </blockquote>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 # hello!
 
 I am *building a __
@@ -404,11 +392,10 @@ this:
 - reads line by line
   - less feature
 >I *guess* it's _**not
->efficient**_.")
-       test-check-diff test-report-failure-diff)
+>efficient**_."))
 
-(test* "inline"
-       "\
+(test*/diff "inline"
+            "\
 <h1 id=\"looking-at-*you*\">Looking at <em>You</em></h1>
 <ul><li>hello <em>1
 hello</em> 2
@@ -419,7 +406,7 @@ hello</strong> 6</li>
 </ul>
 </ul>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 # Looking at *You*
 
 - hello *1
@@ -428,37 +415,34 @@ hello</strong> 6</li>
   - hello __4
     hello 5
     hello__ 6
-")
-       test-check-diff test-report-failure-diff)
+"))
 
 (test-section "markdown->html! w/ variables")
 
-(test* "flat"
-       "\
+(test*/diff "flat"
+            "\
 <p>My <marquee>blog</marquee></p>
 <p>created at 2025-03-22</p>
 <ul><li>hello me!</li>
 <li>{this} is not a variable</li>
 </ul>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 {{title}}
 
 created at {{created}}
 - hello {{name}}!
 - {this} is not a variable"
 			   (hash-table-from-pairs 'eq?
-						  '(user . (("title" . "My <marquee>blog</marquee>") ("created" . "2025-03-22") ("name" . "me")))))
-       test-check-diff test-report-failure-diff)
+						  '(user . (("title" . "My <marquee>blog</marquee>") ("created" . "2025-03-22") ("name" . "me"))))))
 
-(test* "newline is space"
-       "<p>\nHELLO</p>\n"
-       (run-markdown->html "\
+(test*/diff "newline is space"
+            "<p>\nHELLO</p>\n"
+            (run-markdown->html "\
 {{hello long
 name}}"
 			   (hash-table-from-pairs 'eq?
-						  '(user . (("hello long name" . "HELLO")))))
-       test-check-diff test-report-failure-diff)
+						  '(user . (("hello long name" . "HELLO"))))))
 
 (test* "don't choke on invalid input; non-existent and runaway"
        (test-truthy)
@@ -477,24 +461,22 @@ name}}"
 
 (test-section "markdown->html! w/ links")
 
-(test* "a simple"
-       "<p>hello <a href=\"wikipedia.org\">Wikipedia</a>.</p>\n"
-       (run-markdown->html "hello [Wikipedia](wikipedia.org).")
-       test-check-diff test-report-failure-diff)
+(test*/diff "a simple"
+            "<p>hello <a href=\"wikipedia.org\">Wikipedia</a>.</p>\n"
+            (run-markdown->html "hello [Wikipedia](wikipedia.org)."))
 
-(test* "a multiline"
-       "\
+(test*/diff "a multiline"
+            "\
 <p>
 <a href=\"https://example.com/\">really
 long</a></p>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 [really
-long](https://example.com/)")
-       test-check-diff test-report-failure-diff)
+long](https://example.com/)"))
 
-(test* "a everywhere"
-       "\
+(test*/diff "a everywhere"
+            "\
 <ul><li>check out <a href=\"https://example.com/\">the website</a></li>
 </ul>
 <blockquote><p>check out <a href=\"https://example.com/\">the website</a></p>
@@ -502,26 +484,24 @@ long](https://example.com/)")
 <p>check out <a href=\"https://example.com/\">the <strong>website</strong></a><br>
 <a href=\"https://docs.example.com/\"><code>printf</code></a></p>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 - check out [the website](https://example.com/)
 
 >check out [the website](https://example.com/)
 
 check out [the **website**](https://example.com/)<br>
-[`printf`](https://docs.example.com/)")
-       test-check-diff test-report-failure-diff)
+[`printf`](https://docs.example.com/)"))
 
-(test* "a fake"
-       "\
+(test*/diff "a fake"
+            "\
 <p>[this <em>and</em>] [this is not a link]
 </p>
 <p>[this too is not] (a link)</p>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 [this *and*] [this is not a link]
 
-[this too is not] (a link)")
-       test-check-diff test-report-failure-diff)
+[this too is not] (a link)"))
 
 (test* "don't choke on invalid input"
        (test-truthy)
@@ -529,22 +509,21 @@ check out [the **website**](https://example.com/)<br>
 
 (test-section "custom-tag rule")
 
-(test* "blockquote"
-       "\
+(test*/diff "blockquote"
+            "\
 <div class=\"left-indent dim\"><p>feels like blockquotes are abused
 in markdown. they look pretty but
 they aren't actual quotes most of the time.</p>
 </div>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 >feels like blockquotes are abused
 >in markdown. they look pretty but
 >they aren't actual quotes most of the time."
-			   (alist->hash-table '((custom-tag . ((blockquote . ((tagname . "div") (classname . "left-indent dim"))))))))
-       test-check-diff test-report-failure-diff)
+			   (alist->hash-table '((custom-tag . ((blockquote . ((tagname . "div") (classname . "left-indent dim")))))))))
 
-(test* "ul and ol"
-       "\
+(test*/diff "ul and ol"
+            "\
 <ul class=\"no-bullet\" contenteditable><li class=\"list\">hello?</li>
 <ul class=\"no-bullet\" contenteditable><li class=\"list\">ok?</li>
 </ul>
@@ -552,58 +531,53 @@ they aren't actual quotes most of the time.</p>
 <ol class=\"roman\"><li class=\"list\">hi?</li>
 </ol>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 - hello?
   - ok?
 1. hi?"
-			   (alist->hash-table '((custom-tag . ((ul . ((classname . "no-bullet") (raw . "contenteditable")))
-							       (li . ((classname . "list")))
-							       (ol . ((classname . "roman"))))))))
-       test-check-diff test-report-failure-diff)
+			        (alist->hash-table '((custom-tag . ((ul . ((classname . "no-bullet") (raw . "contenteditable")))
+							            (li . ((classname . "list")))
+							            (ol . ((classname . "roman")))))))))
 
-(test* "h1, h3 and p"
-       "\
+(test*/diff "h1, h3 and p"
+            "\
 <p class=\"lead\" id=\"don't-use-many-h1s!\">don't use many h1s!</p>
 <h2 id=\"h2-here\">h2 here</h2>
 <h3 class=\"big dim\" id=\"h3-here\">h3 here</h3>
 <p style=\"text-align: center; font-size: 2em\">and p</p>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 # don't use many h1s!
 ## h2 here
 ### h3 here
 and p"
-			   (alist->hash-table '((custom-tag . ((h1 . ((tagname . "p") (classname . "lead")))
-							       (h3 . ((classname . "big dim")))
-							       (p . ((raw . "style=\"text-align: center; font-size: 2em\""))))))))
-       test-check-diff test-report-failure-diff)
+			        (alist->hash-table '((custom-tag . ((h1 . ((tagname . "p") (classname . "lead")))
+							            (h3 . ((classname . "big dim")))
+							            (p . ((raw . "style=\"text-align: center; font-size: 2em\"")))))))))
 
-(test* "strong, em, s, code"
-       "\
+(test*/diff "strong, em, s, code"
+            "\
 <p><b class=\"important\">strong</b>
 <i class=\"term\" data-tooltip=\"hover\">em</i>
 <samp>code</samp></p>
 "
-       (run-markdown->html "\
+            (run-markdown->html "\
 **strong**
 *em*
 `code`"
-			   (alist->hash-table '((custom-tag . ((strong . ((tagname . "b") (classname . "important")))
-							       (em . ((tagname . "i") (classname . "term") (raw . "data-tooltip=\"hover\"")))
-							       (code . ((tagname . "samp"))))))))
-       test-check-diff test-report-failure-diff)
+			        (alist->hash-table '((custom-tag . ((strong . ((tagname . "b") (classname . "important")))
+							            (em . ((tagname . "i") (classname . "term") (raw . "data-tooltip=\"hover\"")))
+							            (code . ((tagname . "samp")))))))))
 
-(test* "hr"
-       "<hr data-content=\"true\">"
-       (run-markdown->html "---"
-			   (alist->hash-table '((custom-tag . ((hr . ((raw . "data-content=\"true\""))))))))
-       test-check-diff test-report-failure-diff)
+(test*/diff "hr"
+            "<hr data-content=\"true\">"
+            (run-markdown->html "---"
+			        (alist->hash-table '((custom-tag . ((hr . ((raw . "data-content=\"true\"")))))))))
 
-(test* "a"
-       "<p><a class=\"new-tab\" target=\"_blank\" href=\"https://example.com/survey/2020\">take the survey</a></p>\n"
-       (run-markdown->html "[take the survey](https://example.com/survey/2020)"
-			   (alist->hash-table '((custom-tag . ((a . ((classname . "new-tab") (raw . "target=\"_blank\""))))))))
-       test-check-diff test-report-failure-diff)
+(test*/diff "a"
+            "<p><a class=\"new-tab\" target=\"_blank\" href=\"https://example.com/survey/2020\">take the survey</a></p>\n"
+            (run-markdown->html "[take the survey](https://example.com/survey/2020)"
+			        (alist->hash-table '((custom-tag . ((a . ((classname . "new-tab") (raw . "target=\"_blank\"")))))))))
 
 (test-section "table of contents")
 
