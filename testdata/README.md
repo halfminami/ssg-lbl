@@ -1,0 +1,1 @@
+tests building and diffing

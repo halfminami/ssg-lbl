@@ -16,7 +16,9 @@
 
           eof-reached?
           input-port-append
-          unget-line))
+          unget-line
+
+          hash-table/alist-union!))
 
 (select-module lib.util)
 
@@ -97,3 +99,15 @@
 
 (define (unget-line line in)
   (input-port-append (open-input-string #"~|line|\n") in))
+
+;; ---------------------------------------------------------------------------------------------------
+
+(define (hash-table/alist-union! a b)
+  (define-values (k v) (hash-table-entries b))
+  (for-each (^ (k v)
+              (cond [(equal-one-of? k 'user 'config 'custom-tag 'special)
+                     (hash-table-update! a k (cut alist-merge (^ (a b) a) <> v) '())]
+                    [(not (hash-table-contains? a k))
+                     (hash-table-set! a k v)]))
+            k
+            v))

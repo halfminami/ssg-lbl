@@ -1,0 +1,11 @@
+---scm
+;; tags ul
+(define (tags->items l)
+  ($ apply string-append $ map (^s #"<li>~|s|</li>") l))
+(define user (hash-table-get env 'user '()))
+(define tags (alist-ref user "tags" equal? '()))
+
+`((tags-ul . ,#"<ul>~(tags->items tags)</ul>"))
+---
+{{tags-ul}}
+{{content}}

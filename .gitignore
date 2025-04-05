@@ -51,3 +51,5 @@ flycheck_*.el
 
 test.record
 test.log
+
+testdata/**/got/

@@ -11,13 +11,17 @@
 
 (select-module lib.html-all)
 
-;; parses variable only
+;; parses variable only, special treatment for {{content}}
 (define (html->html in out env)
   (letrec* ([get-variable
-             (^l (and-let* ([name (list->string (reverse l))]
-                            [user (hash-table-get env 'user #f)]
-                            [data (alist-ref user name)])
-                   data))]
+             (^l (let1 name (list->string (reverse l))
+                   (if (string=? "content" name)
+                     (let1 content! (hash-table-get env 'content!)
+                       (content! out env)
+                       "")
+                     (and-let* ([user (hash-table-get env 'user #f)]
+                                [data (alist-ref user name)])
+                       data))))]
             [close
              (^(acc)
                (and-let* ([c (read-char in)]
@@ -33,7 +37,7 @@
              (^()
                (while (read-char in)
                  char? => c
-                 (if (and (char=? #\{ c (peek-char in)))
+                 (if (char=? #\{ c (peek-char in))
                    (begin
                      (read-char in)
                      (close '()))

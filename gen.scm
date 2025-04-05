@@ -1,15 +1,11 @@
 #!/usr/bin/env gosh
 
-(define config
-  '((in . "./content")
-    (out . "./_site")
-    (template . "+template.html")))
+(use lib.gen)
+(use lib.defaults :prefix d:)
 
-(define custom-tag '())
+(load "./config.scm")
 
-(define config-ht
-  (hash-table-from-pairs 'eq?
-                         `(config . ,config)
-                         `(custom-tag . ,custom-tag)))
-
-(define (main args) (print args "?"))
+(define (main args)
+  (let* ([conf (hash-table-get config 'config '())]
+         [in   (alist-ref conf 'in eq? d:config-in)])
+    (generate in config)))
