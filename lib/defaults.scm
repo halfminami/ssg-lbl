@@ -3,9 +3,9 @@
 
 (select-module lib.defaults)
 
-(define config-in "./content")
+(define config-in "./content")          ; without /
 (define config-out "./_site")
-(define config-template #/\+template\.html$/)
+(define config-template #/\+template\.html$/) ; markdown isn't supported!
 
 (define config
   `((in . ,config-in)

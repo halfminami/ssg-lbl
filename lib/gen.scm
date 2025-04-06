@@ -6,6 +6,7 @@
   (use lib.markdown :only (markdown->html!))
   (use lib.html :only (html->html))
   (use lib.defaults :prefix d:)
+  (use lib.commandopt)
   (export-all))
 
 (define-module lib.gen
@@ -38,8 +39,8 @@
 (define (frontmatter-then-content parse!)
   (^ (in out env)
     (let* ([res (read-drop-frontmatter! in env)]
-           [in (car res)]
-           [fm (cadr res)])
+           [in  (car res)]
+           [fm  (cadr res)])
       (parse! in out fm)
       fm)))
 
@@ -56,18 +57,13 @@
   (html->html in out env)
   env)
 
-(define (pass! in out env)
-  (define special (hash-table-get env 'special))
-  (define src (alist-ref special 'input-path))
-  (define dst (alist-ref special 'output-path))
-  (copy-file src dst :if-exists :supersede)
-  #f)
-
 (define (which-read path)
   (let1 ext (path-extension path)
     (cond [(string=? "md" ext) read-md!]
           [(string=? "html" ext) read-html!]
-          [else pass!])))
+          [else (raise (error (string-append "extension " ext " is not supporsed to be parsed")))])))
+
+(define (parsable ext) (u:equal-one-of? ext "html" "md"))
 
 (define (input-path->output-path path env)
   (let* ([config  (hash-table-get env 'config '())]
@@ -75,13 +71,13 @@
          [out-dir (alist-ref config 'out eq? d:config-out)])
     (let-values ([(dir name ext) (decompose-path path)])
       (let1 out-dir ($ string-append out-dir $ substring dir (string-length in-dir) -1)
-        (if (u:equal-one-of? ext "html" "md")
+        (if (parsable ext)
           ;; dir/name.md => dir/name/index.html
           (let ([out-dir (if (string=? "index" name) out-dir (string-append out-dir "/" name))]
                 [name    "index"]
                 [ext     "html"])
             #"~|out-dir|/~|name|.~|ext|")
-          path)))))
+          #"~|out-dir|/~|name|.~|ext|")))))
 
 (define (ensure-path path)
   (define-values (dir a b) (decompose-path path))
@@ -95,22 +91,32 @@
                               [re     (alist-ref config 'template)])
                      (find (pa$ rxmatch re) files)))
   (when template (set! files (remove (pa$ string=? template) files))) ; ??
+  (verbose-print (string-join `(,#"parsing directory ~|path|"
+                                ,(if template (string-join `("with template" ,template)) "without template"))))
   (u:->> files
          (map (^p
-               (if template
-                 (call-with-input-file template
-                   (^i (convert/template (pa$ (frontmatter-then-content (which-read template)) i)
-                                         p
-                                         children
-                                         env)))
-                 (call-with-input-string "{{content}}"
-                   (^i (convert/template (pa$ (frontmatter-then-content html->html) i)
-                                         p
-                                         children
-                                         env))))))
+               (let1 should-parse? (parsable (path-extension p))
+                 (cond
+                  [(and should-parse? template)
+                   (call-with-input-file template
+                     (^i (convert/template (pa$ (frontmatter-then-content (which-read template)) i)
+                                           p
+                                           children
+                                           env)))]
+                  [should-parse?
+                   (call-with-input-string "{{content}}"
+                     (^i (convert/template (pa$ (frontmatter-then-content html->html) i)
+                                           p
+                                           children
+                                           env)))]
+                  [else
+                   (let1 output-path (input-path->output-path p env)
+                     (ensure-path output-path)
+                     (copy-file p output-path :if-exists :supersede))]))))
          (filter identity)))
 
 ;; I wanted to manipulate output-path via frontmatter, but it requires evaluating frontmatter first, mutating input port
+;; html or md only
 (define (convert/template template$ path children env)
   (let ([env     (hash-table-copy env)]
         [special (make-special path children env)])
@@ -122,6 +128,7 @@
                [fm          (cadr res)]
                [output-path (input-path->output-path path fm)]
                [content!    (^ (out env)
+                              (verbose-print #"parsing file ~|path| with env 'user ~(hash-table-get env 'user #f)")
                               ((which-read path) in out env))])
           (ensure-path output-path)
           
@@ -133,4 +140,5 @@
           
           (call-with-output-file output-path
             (^ (out)
+              (verbose-print #"writing to ~|output-path|")
               (template$ out fm))))))))

@@ -44,4 +44,6 @@
 
 (run "path_index")
 
+(run "path_extension")
+
 (test-end :exit-on-failure #t)
