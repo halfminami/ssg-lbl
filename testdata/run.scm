@@ -23,9 +23,8 @@
               got-list)))
 
 ;; path/content is the inputs
-(define (run path)
-  (let ([config (hash-table-copy d:default-config)]
-        [in   #"./testdata/~|path|/content"]
+(define (run path :optional [config (hash-table-copy d:default-config)])
+  (let ([in   #"./testdata/~|path|/content"]
         [out  #"./testdata/~|path|/got"]
         [want #"./testdata/~|path|/want"])
     (hash-table-update! config
@@ -45,5 +44,22 @@
 (run "path_index")
 
 (run "path_extension")
+
+(run "custom_elements"
+     (let1 config (hash-table-copy d:default-config)
+       (hash-table-set! config 'custom-tag '((p . ((tagname . "div") (classname . "p")))
+                                             (h1 . ((classname . "important dim")))
+                                             (blockquote . ((raw . "contenteditable")))
+                                             (ul . ((classname . "list")))
+                                             (ol . ((classname . "list alphabet")))
+                                             (li . ((classname . "item")))
+                                             (strong . ((tagname . "b") (classname . "strong")))
+                                             (em . ((tagname . "i") (classname . "em")))
+                                             (s . ((tagname . "span") (classname . "strike") (raw . "data-rotate=\"130\"")))
+                                             (a . ((raw . "target=\"_self\"")))
+                                             (code . ((tagname . "samp") (classname . "dark")))
+                                             (codeblock . ((classname . "language-plain") (raw . "contenteditable")))
+                                             (hr . ((classname . "hr")))))
+       config))
 
 (test-end :exit-on-failure #t)

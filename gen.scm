@@ -1,6 +1,8 @@
-#!/usr/bin/env gosh
-
-;; please run `chmod a+x gen.scm` to make it executable
+#!/bin/sh
+#|
+exec gosh -I. -- $0 "$@"
+|#
+;; chmod a+x gen.scm
 
 (use lib.gen)
 (use lib.defaults :prefix d:)
@@ -29,6 +31,7 @@ usage: ~|name| [OPTION] ...
            (current-output-port))
   (exit #f))
 
+;; TODO: better error handling
 (define (main args)
   (let-args (cdr args)
       ([in  "i|in=s"    d:config-in => (cut string-trim-right <> #\/)]

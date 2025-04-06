@@ -1,0 +1,24 @@
+<h1 class="important dim" id="customizing-elements-in-markdown">Customizing elements in Markdown</h1>
+<div class="p">This is to show how to change elements in Markdown<span class="strike" data-rotate="130"> and HTML</span>. This
+configuration is <b class="strong">global</b> and has <i class="em">limitations</i>.</div>
+<ul class="list"><li class="item"><samp class="dark">p</samp>, <samp class="dark">h1-6</samp>, <samp class="dark">blockquote</samp>, <samp class="dark">ul</samp>, <samp class="dark">ol</samp>, <samp class="dark">li</samp>, <samp class="dark">strong</samp>, <samp class="dark">em</samp>, <samp class="dark">s</samp>, <samp class="dark">a</samp>, <samp class="dark">code</samp>
+can be customized and the key is the same as the name</li>
+<li class="item">codeblock (<samp class="dark">&lt;pre&gt;&lt;code&gt;</samp>)
+is a two-element syntax and <samp class="dark">'tagname</samp> makes no sense</li>
+<li class="item"><samp class="dark">hr</samp>
+is a self-closing element and setting <samp class="dark">'tagname</samp> to any other non
+self-closing element makes no sense</li>
+</ul>
+<hr class="hr"><div class="p">You can customize elements by:</div>
+<ol class="list alphabet"><li class="item">update an association list of key <samp class="dark">'custom-tag</samp> in <samp class="dark">config</samp></li>
+<li class="item">each entry consists of <samp class="dark">'tagname</samp>, <samp class="dark">'classname</samp> and <samp class="dark">'raw</samp></li>
+<ul class="list"><li class="item"><samp class="dark">'classname</samp> is a string</li>
+<li class="item"><samp class="dark">'raw</samp> is put as-is</li>
+</ul>
+</ol>
+<blockquote contenteditable><div class="p">it performs no validation, don't put <samp class="dark">class=&quot;...&quot;</samp> in <samp class="dark">'raw</samp></div>
+</blockquote>
+<div class="p">The <samp class="dark">config</samp> object for this file can be found in <samp class="dark">run.scm</samp>.</div>
+<div class="p"><a target="_self" href="#customizing-elements-in-markdown">back to h1</a></div>
+<div class="p">I think I've used all the elements.</div>
+
