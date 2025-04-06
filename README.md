@@ -13,6 +13,8 @@
 The parser tries to parse text line by line.
 It doesn't validate input.
 
+Below syntax can be used in `.md`.
+(In `.html` files, only variables are replaced.)
 - block element
   - heading starts with `r/#+ /`
     - id is generated with its content (template won't get expanded)
@@ -55,5 +57,45 @@ like so:
 
 This page was last modified on {{modified}}.
 ```
+The last expression must produce alist (metadata). The keys in alist are
+converted to strings and can be accessed using variable syntax.
 
 If no Frontmatter needed for the page, just omit it.
+
+### Subdirectory
+
+Files are traversed from bottom to top. A file can access metadata of files
+in its subdirectory.
+
+A file can access frontmatter of files in its subdirectory. 
+They are grouped by subdirectory and put in alist.
+Please see [`subdir_frontmatter` test](./testdata/subdir_frontmatter/) for an example.
+
+## Output paths
+
+If `.html` or `.md` files are not named `index.html` or `index.md`, they will
+be put under the corresponding directory and named `index.html`.
+
+If input is:
+```
+index.md
+hello.md
+posts.md
+posts/
+  one.md
+  two/
+    index.md
+```
+Then the output would be:
+```
+index.html
+hello/
+  index.html
+posts/
+  index.html
+  one/
+    index.html
+  two/
+    index.html
+```
+(Please see [`path_index` test](./testdata/path_index/) for this example.)

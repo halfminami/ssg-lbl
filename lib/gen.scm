@@ -70,13 +70,18 @@
           [else pass!])))
 
 (define (input-path->output-path path env)
-  (let* ([config   (hash-table-get env 'config '())]
-         [in-dir   (alist-ref config 'in eq? d:config-in)]
-         [out-dir  (alist-ref config 'out eq? d:config-out)]
-         [out-path (string-append out-dir (substring path (string-length in-dir) -1))]
-         [ext      (path-extension out-path)])
-    (cond [(string=? "md" ext) (path-swap-extension out-path "html")]
-          [else out-path])))
+  (let* ([config  (hash-table-get env 'config '())]
+         [in-dir  (alist-ref config 'in eq? d:config-in)]
+         [out-dir (alist-ref config 'out eq? d:config-out)])
+    (let-values ([(dir name ext) (decompose-path path)])
+      (let1 out-dir ($ string-append out-dir $ substring dir (string-length in-dir) -1)
+        (if (u:equal-one-of? ext "html" "md")
+          ;; dir/name.md => dir/name/index.html
+          (let ([out-dir (if (string=? "index" name) out-dir (string-append out-dir "/" name))]
+                [name    "index"]
+                [ext     "html"])
+            #"~|out-dir|/~|name|.~|ext|")
+          path)))))
 
 (define (ensure-path path)
   (define-values (dir a b) (decompose-path path))
@@ -112,12 +117,12 @@
     (u:hash-table/alist-union! special env)
     (call-with-input-file path
       (^ (in)
-        (let* ([res (read-drop-frontmatter! in special)]
-               [in (car res)]
-               [fm (cadr res)]
+        (let* ([res         (read-drop-frontmatter! in special)]
+               [in          (car res)]
+               [fm          (cadr res)]
                [output-path (input-path->output-path path fm)]
-               [content! (^ (out env)
-                           ((which-read path) in out env))])
+               [content!    (^ (out env)
+                              ((which-read path) in out env))])
           (ensure-path output-path)
           
           (u:hash-table/alist-union! fm special)

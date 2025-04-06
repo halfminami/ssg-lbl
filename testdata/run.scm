@@ -42,4 +42,6 @@
 
 (run "subdir_frontmatter")
 
+(run "path_index")
+
 (test-end :exit-on-failure #t)
