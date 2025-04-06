@@ -40,4 +40,6 @@
 
 (run "template_child_frontmatter")
 
+(run "subdir_frontmatter")
+
 (test-end :exit-on-failure #t)

@@ -9,3 +9,5 @@
   (let* ([conf (hash-table-get config 'config '())]
          [in   (alist-ref conf 'in eq? d:config-in)])
     (generate in config)))
+
+;; TODO: gauche.parseopt

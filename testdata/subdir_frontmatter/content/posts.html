@@ -1,0 +1,33 @@
+---scm
+;; paths cannot be used as-is for href..
+
+(use util.match)
+
+(define children (hash-table-get env 'children '()))
+(define posts (alist-ref children "./testdata/subdir_frontmatter/content/posts"))
+
+(define entries ($ (^s #"<ul>~|s|</ul>")
+                 $ apply string-append
+                 $ map (^s #"<li>~|s|</li>")
+                 $ map (match-lambda
+                         [(created title output-path)
+                          #"<h3><a href=\"~|output-path|\">~|title|</a></h3>\
+                          <span class=\"created\"><time>~|created|</time></span>"])
+                 $ map (^(a b) `(,(alist-ref a "created" equal? "N/A")
+                                 ,(alist-ref a "title" equal? "N/A")
+                                 ,(alist-ref b 'output-path)))
+                 (map (cut hash-table-get <> 'user '()) posts)
+                 $ map (cut hash-table-get <> 'special '()) posts))
+`((entries . ,entries))
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Blog posts list</title>
+</head>
+<body>
+  <h1>Blog posts</h1>
+  
+  {{entries}}
+</body>
+</html>

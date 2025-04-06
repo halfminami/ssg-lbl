@@ -85,7 +85,7 @@
 ;; convert all files under `path` directory, returns list of config
 (define (generate path env)
   (define-values (dir files) (directory-list2 path :children? #t :add-path? #t))
-  (define children (map (cut generate <> env) dir))
+  (define children (map (^p `(,p . ,(generate p env))) dir))
   (define template (and-let* ([config (hash-table-get env 'config #f)]
                               [re     (alist-ref config 'template)])
                      (find (pa$ rxmatch re) files)))
@@ -112,7 +112,7 @@
     (u:hash-table/alist-union! special env)
     (call-with-input-file path
       (^ (in)
-        (let* ([res (read-drop-frontmatter! in env)]
+        (let* ([res (read-drop-frontmatter! in special)]
                [in (car res)]
                [fm (cadr res)]
                [output-path (input-path->output-path path fm)]
